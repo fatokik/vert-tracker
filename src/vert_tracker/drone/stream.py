@@ -7,6 +7,7 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vert_tracker.core.exceptions import VideoStreamError
 from vert_tracker.core.logging import get_logger
@@ -106,7 +107,7 @@ class VideoStream:
                 logger.error("Frame capture error: %s", e)
                 raise VideoStreamError(f"Frame capture failed: {e}") from e
 
-    def _read_frame(self) -> np.ndarray | None:
+    def _read_frame(self) -> NDArray[np.uint8] | None:
         """Read a single frame from the Tello.
 
         Returns:

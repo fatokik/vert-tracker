@@ -1,0 +1,75 @@
+[tool.poetry]
+name = "vert-tracker"
+version = "0.1.0"
+description = "Measure vertical jump height using a DJI Tello EDU drone and computer vision"
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "vert_tracker", from = "src" }]
+
+[tool.poetry.scripts]
+vert-tracker = "vert_tracker.main:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+djitellopy = "^2.5.0"
+mediapipe = "^0.10.9"
+opencv-python = "^4.9.0"
+numpy = "^1.26.0"
+scipy = "^1.12.0"
+pydantic-settings = "^2.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-cov = "^4.1.0"
+ruff = "^0.2.0"
+mypy = "^1.8.0"
+pre-commit = "^3.6.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["vert_tracker"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+show_error_codes = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = [
+    "djitellopy.*",
+    "mediapipe.*",
+    "cv2.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "-v",
+    "--cov=vert_tracker",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+]

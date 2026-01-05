@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from vert_tracker.core.config import FilterSettings
 from vert_tracker.core.logging import get_logger
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
 
 logger = get_logger(__name__)
 
@@ -38,7 +36,7 @@ class KalmanFilter2D:
         self.measurement_noise = measurement_noise
 
         # State transition matrix (constant velocity model)
-        self.F: NDArray[np.floating] = np.array(
+        self.F: NDArray[np.floating[Any]] = np.array(
             [
                 [1, 0, 1, 0],  # x = x + vx
                 [0, 1, 0, 1],  # y = y + vy
@@ -49,7 +47,7 @@ class KalmanFilter2D:
         )
 
         # Measurement matrix (observe position only)
-        self.H: NDArray[np.floating] = np.array(
+        self.H: NDArray[np.floating[Any]] = np.array(
             [
                 [1, 0, 0, 0],
                 [0, 1, 0, 0],
@@ -58,14 +56,14 @@ class KalmanFilter2D:
         )
 
         # Process noise covariance
-        self.Q: NDArray[np.floating] = np.eye(4, dtype=np.float64) * process_noise
+        self.Q: NDArray[np.floating[Any]] = np.eye(4, dtype=np.float64) * process_noise
 
         # Measurement noise covariance
-        self.R: NDArray[np.floating] = np.eye(2, dtype=np.float64) * measurement_noise
+        self.R: NDArray[np.floating[Any]] = np.eye(2, dtype=np.float64) * measurement_noise
 
         # State estimate and covariance
-        self.x: NDArray[np.floating] = np.zeros(4, dtype=np.float64)
-        self.P: NDArray[np.floating] = np.eye(4, dtype=np.float64)
+        self.x: NDArray[np.floating[Any]] = np.zeros(4, dtype=np.float64)
+        self.P: NDArray[np.floating[Any]] = np.eye(4, dtype=np.float64)
 
         self._initialized = False
 
@@ -133,8 +131,8 @@ class KalmanFilter2D:
         self.x = self.x + K @ y_residual
 
         # Covariance update
-        I = np.eye(4, dtype=np.float64)
-        self.P = (I - K @ self.H) @ self.P
+        identity = np.eye(4, dtype=np.float64)
+        self.P = (identity - K @ self.H) @ self.P
 
         return self.position
 

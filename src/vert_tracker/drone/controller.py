@@ -147,11 +147,11 @@ class TelloController:
 
     def get_battery(self) -> int:
         """Get current battery level percentage."""
-        return self.tello.get_battery()
+        return int(self.tello.get_battery())
 
     def get_height(self) -> int:
         """Get current height in cm."""
-        return self.tello.get_height()
+        return int(self.tello.get_height())
 
     def get_frame_reader(self) -> object:
         """Get the frame reader object for video streaming.

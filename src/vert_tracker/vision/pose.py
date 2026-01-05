@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import mediapipe as mp
-import numpy as np
 
 from vert_tracker.core.config import PoseSettings
 from vert_tracker.core.exceptions import PoseEstimationError
@@ -86,6 +85,10 @@ class PoseEstimator:
         if not self._initialized or self._pose is None:
             self.initialize()
 
+        # After initialize(), _pose should not be None
+        if self._pose is None:
+            raise PoseEstimationError("Pose estimator not initialized")
+
         try:
             # MediaPipe expects RGB
             import cv2
@@ -134,7 +137,10 @@ class PoseEstimator:
             total_visibility += lm.visibility
 
         # Average visibility as confidence proxy
-        confidence = total_visibility / len(pose_landmarks.landmark) if pose_landmarks.landmark else 0.0
+        if pose_landmarks.landmark:
+            confidence = total_visibility / len(pose_landmarks.landmark)
+        else:
+            confidence = 0.0
 
         return Pose(
             landmarks=landmarks,

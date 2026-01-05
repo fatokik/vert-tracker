@@ -257,7 +257,7 @@ class SessionStats:
         heights = [j.height_cm for j in self.jumps]
         mean = sum(heights) / len(heights)
         variance = sum((h - mean) ** 2 for h in heights) / len(heights)
-        return variance**0.5
+        return float(variance**0.5)
 
     @property
     def last_jump(self) -> JumpEvent | None:

@@ -5,18 +5,16 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 import cv2
 import numpy as np
+from numpy.typing import NDArray
 
 from vert_tracker.core.config import CalibrationSettings
 from vert_tracker.core.exceptions import CalibrationError
 from vert_tracker.core.logging import get_logger
 from vert_tracker.core.types import CalibrationMethod, CalibrationProfile, Frame
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
 
 logger = get_logger(__name__)
 
@@ -47,7 +45,7 @@ class Calibrator:
             settings: Calibration settings (uses defaults if None)
         """
         self.settings = settings or CalibrationSettings()
-        self._detector: object | None = None
+        self._detector: cv2.aruco.ArucoDetector | None = None
         self._current_profile: CalibrationProfile | None = None
 
     @property
@@ -60,7 +58,7 @@ class Calibrator:
         """Check if calibration is active."""
         return self._current_profile is not None
 
-    def _get_aruco_detector(self) -> object:
+    def _get_aruco_detector(self) -> cv2.aruco.ArucoDetector:
         """Get or create ArUco detector."""
         if self._detector is None:
             dict_type = ARUCO_DICTS.get(self.settings.aruco_dict, cv2.aruco.DICT_4X4_50)
@@ -84,7 +82,7 @@ class Calibrator:
         detector = self._get_aruco_detector()
 
         gray = cv2.cvtColor(frame.image, cv2.COLOR_BGR2GRAY)
-        corners, ids, _ = detector.detectMarkers(gray)  # type: ignore[union-attr]
+        corners, ids, _ = detector.detectMarkers(gray)
 
         if ids is None or len(ids) == 0:
             raise CalibrationError("No ArUco marker detected in frame")
@@ -187,7 +185,7 @@ class Calibrator:
             timestamp=time.time(),
         )
 
-    def _calculate_marker_size(self, corners: NDArray[np.floating]) -> float:
+    def _calculate_marker_size(self, corners: NDArray[np.floating[Any]]) -> float:
         """Calculate marker size in pixels from corners.
 
         Args:
@@ -196,14 +194,10 @@ class Calibrator:
         Returns:
             Average side length in pixels
         """
-        side_lengths = [
-            np.linalg.norm(corners[i] - corners[(i + 1) % 4]) for i in range(4)
-        ]
+        side_lengths = [np.linalg.norm(corners[i] - corners[(i + 1) % 4]) for i in range(4)]
         return float(np.mean(side_lengths))
 
-    def detect_aruco_markers(
-        self, frame: Frame
-    ) -> list[tuple[int, NDArray[np.floating]]]:
+    def detect_aruco_markers(self, frame: Frame) -> list[tuple[int, NDArray[np.floating[Any]]]]:
         """Detect all ArUco markers in frame.
 
         Args:
@@ -215,7 +209,7 @@ class Calibrator:
         detector = self._get_aruco_detector()
 
         gray = cv2.cvtColor(frame.image, cv2.COLOR_BGR2GRAY)
-        corners, ids, _ = detector.detectMarkers(gray)  # type: ignore[union-attr]
+        corners, ids, _ = detector.detectMarkers(gray)
 
         if ids is None:
             return []
