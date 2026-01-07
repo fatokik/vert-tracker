@@ -20,7 +20,7 @@ Measure vertical jump height for volleyball training using a DJI Tello EDU drone
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/vert-tracker.git
+git clone https://github.com/fatokik/vert-tracker.git
 cd vert-tracker
 
 # Install dependencies with Poetry
@@ -43,6 +43,9 @@ poetry run python scripts/calibrate.py
 
 # 3. Start tracking session
 poetry run vert-tracker
+
+# Or start in demo mode (no drone required, uses webcam/simulated data)
+poetry run vert-tracker --demo
 ```
 
 ## Controls
@@ -72,36 +75,43 @@ vert-tracker/
 ## Development Milestones
 
 ### M1: Tello Connection + Video Stream
+
 - [ ] Connect to Tello EDU
 - [ ] Stream 720p@30fps video to OpenCV window
 - [ ] Basic takeoff/land/hover controls
 
 ### M2: MediaPipe Pose Overlay
+
 - [ ] Integrate MediaPipe pose estimation
 - [ ] Draw skeleton overlay on video feed
 - [ ] Track hip center as primary reference point
 
 ### M3: Calibration System
+
 - [ ] ArUco marker detection
 - [ ] Known-height reference object calibration
 - [ ] Persist calibration profiles
 
 ### M4: Jump Detection Algorithm
+
 - [ ] State machine: IDLE → TAKEOFF → AIRBORNE → LANDING
 - [ ] Velocity-based phase transitions
 - [ ] Robust handling of noise and partial poses
 
 ### M5: Height Calculation with Validation
+
 - [ ] Peak detection via trajectory fitting
 - [ ] Pixel displacement to cm conversion
 - [ ] Cross-validation with physics model
 
 ### M6: Real-time UI with History
+
 - [ ] Live HUD with current jump metrics
 - [ ] Session statistics display
 - [ ] Jump history timeline
 
 ### M7: Polish and Robustness
+
 - [ ] Edge case handling
 - [ ] Performance optimization
 - [ ] Comprehensive testing
@@ -133,6 +143,7 @@ LANDING ──(stable on ground)──> IDLE
 ### Target Accuracy
 
 The system targets ±2-3 cm accuracy under optimal conditions:
+
 - Good lighting
 - Clear side view
 - Stable drone position
