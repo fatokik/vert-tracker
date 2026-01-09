@@ -11,10 +11,10 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from vert_tracker.core.config import CalibrationSettings
-from vert_tracker.core.exceptions import CalibrationError
-from vert_tracker.core.logging import get_logger
-from vert_tracker.core.types import CalibrationMethod, CalibrationProfile, Frame
+from core.config import CalibrationSettings
+from core.exceptions import CalibrationError
+from core.logging import get_logger
+from core.types import CalibrationMethod, CalibrationProfile, Frame
 
 logger = get_logger(__name__)
 

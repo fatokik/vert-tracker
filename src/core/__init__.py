@@ -1,7 +1,7 @@
 """Core infrastructure: config, types, exceptions, and logging."""
 
-from vert_tracker.core.config import Settings, get_settings
-from vert_tracker.core.exceptions import (
+from core.config import Settings, get_settings
+from core.exceptions import (
     CalibrationError,
     DroneConnectionError,
     JumpDetectionError,
@@ -9,8 +9,8 @@ from vert_tracker.core.exceptions import (
     VertTrackerError,
     VideoStreamError,
 )
-from vert_tracker.core.logging import get_logger, setup_logging
-from vert_tracker.core.types import (
+from core.logging import get_logger, setup_logging
+from core.types import (
     CalibrationProfile,
     Frame,
     JumpEvent,

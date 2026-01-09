@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 
 import cv2
-
 from vert_tracker.core.config import get_settings
 from vert_tracker.core.logging import get_logger, setup_logging
 from vert_tracker.drone.controller import TelloController

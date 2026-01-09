@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from vert_tracker.core.config import FilterSettings
 from vert_tracker.vision.filters import KalmanFilter2D, LandmarkSmoother, SmoothingFilter
 

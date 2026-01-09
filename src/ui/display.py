@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from vert_tracker.core.config import UISettings
-from vert_tracker.core.logging import get_logger
+from core.config import UISettings
+from core.logging import get_logger
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

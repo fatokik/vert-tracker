@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from vert_tracker.core.types import JumpEvent, SessionStats
+from core.types import JumpEvent, SessionStats
 
 
 @dataclass

@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from vert_tracker.analysis.calculator import HeightCalculator
-from vert_tracker.analysis.detector import JumpDetector
-from vert_tracker.analysis.metrics import MetricsTracker
-from vert_tracker.core.config import Settings, get_settings
-from vert_tracker.core.logging import get_logger
-from vert_tracker.core.types import (
+from analysis.calculator import HeightCalculator
+from analysis.detector import JumpDetector
+from analysis.metrics import MetricsTracker
+from core.config import Settings, get_settings
+from core.logging import get_logger
+from core.types import (
     CalibrationProfile,
     Frame,
     JumpEvent,
@@ -20,10 +20,10 @@ from vert_tracker.core.types import (
     Pose,
     SessionStats,
 )
-from vert_tracker.vision.calibration import Calibrator
-from vert_tracker.vision.filters import LandmarkSmoother
-from vert_tracker.vision.overlay import OverlayRenderer
-from vert_tracker.vision.pose import PoseEstimator
+from vision.calibration import Calibrator
+from vision.filters import LandmarkSmoother
+from vision.overlay import OverlayRenderer
+from vision.pose import PoseEstimator
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -202,7 +202,7 @@ class FrameProcessor:
         Returns:
             Pose with smoothed landmark positions
         """
-        from vert_tracker.core.types import Landmark
+        from core.types import Landmark
 
         smoothed_landmarks: dict[int, Landmark] = {}
 
@@ -252,14 +252,14 @@ class FrameProcessor:
             New calibration profile
         """
         # Get head and feet positions
-        from vert_tracker.core.types import LandmarkIndex
+        from core.types import LandmarkIndex
 
         nose = pose.get_landmark(LandmarkIndex.NOSE)
         left_ankle = pose.get_landmark(LandmarkIndex.LEFT_ANKLE)
         right_ankle = pose.get_landmark(LandmarkIndex.RIGHT_ANKLE)
 
         if nose is None or (left_ankle is None and right_ankle is None):
-            from vert_tracker.core.exceptions import CalibrationError
+            from core.exceptions import CalibrationError
 
             raise CalibrationError("Cannot detect head and feet for calibration")
 

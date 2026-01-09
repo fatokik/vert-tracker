@@ -8,7 +8,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from vert_tracker.core.config import CalibrationSettings
 from vert_tracker.core.exceptions import CalibrationError
 from vert_tracker.core.types import CalibrationMethod, CalibrationProfile, Frame

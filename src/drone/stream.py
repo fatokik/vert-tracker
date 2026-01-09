@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import NDArray
 
-from vert_tracker.core.exceptions import VideoStreamError
-from vert_tracker.core.logging import get_logger
-from vert_tracker.core.types import Frame
+from core.exceptions import VideoStreamError
+from core.logging import get_logger
+from core.types import Frame
 
 if TYPE_CHECKING:
-    from vert_tracker.drone.controller import TelloController
+    from drone.controller import TelloController
 
 logger = get_logger(__name__)
 

@@ -5,10 +5,18 @@ description = "Measure vertical jump height using a DJI Tello EDU drone and comp
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{ include = "vert_tracker", from = "src" }]
+packages = [
+    { include = "core", from = "src" },
+    { include = "analysis", from = "src" },
+    { include = "drone", from = "src" },
+    { include = "pipeline", from = "src" },
+    { include = "ui", from = "src" },
+    { include = "vision", from = "src" },
+    { include = "main.py", from = "src" },
+]
 
 [tool.poetry.scripts]
-vert-tracker = "vert_tracker.main:main"
+vert-tracker = "main:main"
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -39,10 +47,12 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["vert_tracker"]
+known-first-party = ["core", "analysis", "drone", "pipeline", "ui", "vision"]
 
 [tool.mypy]
 python_version = "3.11"
+mypy_path = "src"
+explicit_package_bases = true
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
@@ -69,7 +79,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = [
     "-v",
-    "--cov=vert_tracker",
+    "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
 ]

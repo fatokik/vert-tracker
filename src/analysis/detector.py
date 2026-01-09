@@ -8,8 +8,8 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from vert_tracker.core.config import JumpDetectionSettings
-from vert_tracker.core.types import JumpEvent, JumpPhase, Pose
+from core.config import JumpDetectionSettings
+from core.types import JumpEvent, JumpPhase, Pose
 
 
 @dataclass

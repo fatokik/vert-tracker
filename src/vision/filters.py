@@ -8,8 +8,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from vert_tracker.core.config import FilterSettings
-from vert_tracker.core.logging import get_logger
+from core.config import FilterSettings
+from core.logging import get_logger
 
 logger = get_logger(__name__)
 

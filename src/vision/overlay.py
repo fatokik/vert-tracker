@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from vert_tracker.core.config import UISettings
-from vert_tracker.core.types import Frame, JumpEvent, LandmarkIndex, Pose
+from core.config import UISettings
+from core.types import Frame, JumpEvent, LandmarkIndex, Pose
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

@@ -15,7 +15,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-
 from vert_tracker.analysis.calculator import HeightCalculator
 from vert_tracker.analysis.detector import detect_jumps_batch
 from vert_tracker.core.config import get_settings

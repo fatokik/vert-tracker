@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from vert_tracker.core.types import CalibrationProfile, JumpEvent
+from core.types import CalibrationProfile, JumpEvent
 
 
 @dataclass(frozen=True)

@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 from djitellopy import Tello
 
-from vert_tracker.core.config import DroneSettings
-from vert_tracker.core.exceptions import DroneConnectionError
-from vert_tracker.core.logging import get_logger
+from core.config import DroneSettings
+from core.exceptions import DroneConnectionError
+from core.logging import get_logger
 
 if TYPE_CHECKING:
     pass

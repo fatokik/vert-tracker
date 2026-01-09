@@ -9,14 +9,14 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from vert_tracker.core.config import get_settings
-from vert_tracker.core.exceptions import DroneConnectionError, VertTrackerError
-from vert_tracker.core.logging import get_logger, setup_logging
-from vert_tracker.drone.controller import TelloController
-from vert_tracker.drone.stream import VideoStream
-from vert_tracker.pipeline.processor import FrameProcessor
-from vert_tracker.ui.display import DisplayWindow, KeyAction
-from vert_tracker.ui.hud import HUDRenderer
+from core.config import get_settings
+from core.exceptions import DroneConnectionError, VertTrackerError
+from core.logging import get_logger, setup_logging
+from drone.controller import TelloController
+from drone.stream import VideoStream
+from pipeline.processor import FrameProcessor
+from ui.display import DisplayWindow, KeyAction
+from ui.hud import HUDRenderer
 
 logger = get_logger(__name__)
 
@@ -161,7 +161,7 @@ def run_demo_mode() -> int:
     Returns:
         Exit code
     """
-    from vert_tracker.core.types import Frame
+    from core.types import Frame
 
     settings = get_settings()
     setup_logging(settings.logging.level)

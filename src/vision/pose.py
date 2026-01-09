@@ -11,10 +11,10 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-from vert_tracker.core.config import PoseSettings
-from vert_tracker.core.exceptions import PoseEstimationError
-from vert_tracker.core.logging import get_logger
-from vert_tracker.core.types import Frame, Landmark, Pose
+from core.config import PoseSettings
+from core.exceptions import PoseEstimationError
+from core.logging import get_logger
+from core.types import Frame, Landmark, Pose
 
 if TYPE_CHECKING:
     pass

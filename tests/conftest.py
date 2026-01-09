@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from vert_tracker.core.config import (
     CalibrationSettings,
     FilterSettings,
