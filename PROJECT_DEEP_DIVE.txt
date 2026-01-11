@@ -1,0 +1,890 @@
+================================================================================
+                         VERT-TRACKER TECHNICAL DEEP DIVE
+================================================================================
+
+Created: January 2026
+Purpose: Comprehensive technical documentation for understanding and developing
+         the vert-tracker project.
+
+================================================================================
+                              1. PROJECT OVERVIEW
+================================================================================
+
+WHAT IS VERT-TRACKER?
+---------------------
+Vert-Tracker is a computer vision application designed to measure vertical jump
+height in real-time using a DJI Tello EDU drone and MediaPipe pose estimation.
+It's built for volleyball training to provide accurate jump measurements with
+a target accuracy of ±2-3 cm.
+
+CORE FEATURES:
+- Real-time jump height measurement and display
+- MediaPipe-based 33-landmark body pose tracking
+- Pixel-to-cm calibration using ArUco markers or known objects
+- Jump detection via state machine (IDLE → TAKEOFF → AIRBORNE → LANDING)
+- Session history and statistical tracking
+- Visual feedback with skeleton overlay and trajectory visualization
+- Live HUD with metrics and session statistics
+
+HOW IT WORKS (HIGH-LEVEL):
+1. Tello drone hovers at a fixed position, streaming video
+2. Each frame is processed through MediaPipe to detect body pose
+3. Hip position is tracked and smoothed via Kalman filtering
+4. A state machine detects jump phases based on hip velocity
+5. When a jump completes, displacement is converted to height (cm)
+6. Results are displayed on a real-time HUD overlay
+
+================================================================================
+                          2. DIRECTORY STRUCTURE
+================================================================================
+
+vert-tracker/
+├── src/                          # Main Python source code
+│   ├── __init__.py              # Package marker
+│   ├── main.py                  # Application entry point (CLI)
+│   │
+│   ├── core/                    # Core configurations and types
+│   │   ├── __init__.py
+│   │   ├── config.py            # Pydantic settings (env-based config)
+│   │   ├── types.py             # Data classes: Pose, Frame, JumpEvent, etc.
+│   │   ├── exceptions.py        # Custom exception hierarchy
+│   │   └── logging.py           # Logging setup utilities
+│   │
+│   ├── drone/                   # Tello drone control and streaming
+│   │   ├── __init__.py
+│   │   ├── controller.py        # TelloController class (connect, hover, land)
+│   │   └── stream.py            # VideoStream generator (yields Frame objects)
+│   │
+│   ├── vision/                  # Computer vision (pose, calibration, filters)
+│   │   ├── __init__.py
+│   │   ├── pose.py              # PoseEstimator (MediaPipe Tasks API wrapper)
+│   │   ├── calibration.py       # Calibrator (ArUco, known height, manual)
+│   │   ├── filters.py           # KalmanFilter2D, LandmarkSmoother
+│   │   └── overlay.py           # OverlayRenderer (skeleton, trajectory, metrics)
+│   │
+│   ├── analysis/                # Jump detection and height calculation (pure logic)
+│   │   ├── __init__.py
+│   │   ├── detector.py          # JumpDetector state machine
+│   │   ├── calculator.py        # HeightCalculator (displacement → cm)
+│   │   └── metrics.py           # MetricsTracker, session statistics
+│   │
+│   ├── pipeline/                # Frame processing orchestration
+│   │   ├── __init__.py
+│   │   └── processor.py         # FrameProcessor (coordinates all modules)
+│   │
+│   └── ui/                      # Display and HUD rendering
+│       ├── __init__.py
+│       ├── display.py           # DisplayWindow (OpenCV window, keyboard input)
+│       └── hud.py               # HUDRenderer (metrics panel, history chart)
+│
+├── tests/                       # Unit tests
+│   ├── conftest.py              # Pytest fixtures (sample poses, jump sequences)
+│   ├── test_detector.py         # Jump detection state machine tests
+│   ├── test_calculator.py       # Height calculation tests
+│   ├── test_calibration.py      # Calibration system tests
+│   └── test_filters.py          # Kalman and smoothing filter tests
+│
+├── scripts/                     # Standalone utilities
+│   ├── calibrate.py             # Interactive calibration routine
+│   ├── record_session.py        # Record drone video for offline analysis
+│   └── validate_accuracy.py     # Validate measurements against ground truth
+│
+├── data/                        # Runtime data (gitignored)
+│   ├── calibration/             # Saved calibration profiles (JSON)
+│   ├── sessions/                # Recorded session data
+│   └── recordings/              # Video recordings
+│
+├── pyproject.toml               # Poetry project configuration
+├── poetry.lock                  # Locked dependency versions
+├── .env.example                 # Environment configuration template
+├── .pre-commit-config.yaml      # Pre-commit hooks config
+├── .gitignore                   # Git ignore rules
+└── README.md                    # Project documentation
+
+================================================================================
+                           3. TECHNOLOGY STACK
+================================================================================
+
+LANGUAGE & RUNTIME:
+- Python 3.11+ (uses modern typing features)
+
+PACKAGE MANAGEMENT:
+- Poetry (dependency management and virtual environments)
+
+CORE DEPENDENCIES:
+┌─────────────────────┬──────────┬─────────────────────────────────────────┐
+│ Package             │ Version  │ Purpose                                 │
+├─────────────────────┼──────────┼─────────────────────────────────────────┤
+│ djitellopy          │ ^2.5.0   │ DJI Tello drone control library         │
+│ mediapipe           │ ^0.10.9  │ Pose estimation (33-landmark detection) │
+│ opencv-python       │ ^4.9.0   │ Computer vision, video processing       │
+│ numpy               │ ^1.26.0  │ Numerical computing, arrays             │
+│ scipy               │ ^1.12.0  │ Scientific computing (curve fitting)    │
+│ pydantic-settings   │ ^2.1.0   │ Configuration management via env vars   │
+└─────────────────────┴──────────┴─────────────────────────────────────────┘
+
+DEVELOPMENT DEPENDENCIES:
+┌─────────────────────┬──────────┬─────────────────────────────────────────┐
+│ Package             │ Version  │ Purpose                                 │
+├─────────────────────┼──────────┼─────────────────────────────────────────┤
+│ pytest              │ ^8.0.0   │ Testing framework                       │
+│ pytest-cov          │ ^4.1.0   │ Code coverage reporting                 │
+│ ruff                │ ^0.2.0   │ Fast linting and formatting             │
+│ mypy                │ ^1.8.0   │ Static type checking                    │
+│ pre-commit          │ ^3.6.0   │ Git hooks for code quality              │
+└─────────────────────┴──────────┴─────────────────────────────────────────┘
+
+================================================================================
+                        4. ARCHITECTURE & DATA FLOW
+================================================================================
+
+HIGH-LEVEL ARCHITECTURE:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           VERT-TRACKER ARCHITECTURE                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌─────────────┐         ┌─────────────────────────────────────────────┐   │
+│   │ Tello Drone │─────────│ Drone Module (controller.py, stream.py)    │   │
+│   └─────────────┘         └──────────────────┬──────────────────────────┘   │
+│                                              │                              │
+│                                              ▼                              │
+│                           ┌─────────────────────────────────────────────┐   │
+│                           │ Frame (BGR image + timestamp + index)       │   │
+│                           └──────────────────┬──────────────────────────┘   │
+│                                              │                              │
+│                                              ▼                              │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │              FRAME PROCESSOR (pipeline/processor.py)                │   │
+│   │  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────────────┐ │   │
+│   │  │   Pose    │  │  Landmark │  │   Jump    │  │     Height        │ │   │
+│   │  │ Estimator │─▶│  Smoother │─▶│  Detector │─▶│    Calculator     │ │   │
+│   │  │ (vision/) │  │ (filters) │  │(analysis/)│  │    (analysis/)    │ │   │
+│   │  └───────────┘  └───────────┘  └───────────┘  └───────────────────┘ │   │
+│   │                                              │                       │   │
+│   │  ┌─────────────────────────────────────────────────────────────────┐ │   │
+│   │  │                  Overlay Renderer (vision/overlay.py)           │ │   │
+│   │  └─────────────────────────────────────────────────────────────────┘ │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                              │                              │
+│                                              ▼                              │
+│                           ┌─────────────────────────────────────────────┐   │
+│                           │ ProcessedFrame (pose, phase, jump, image)  │   │
+│                           └──────────────────┬──────────────────────────┘   │
+│                                              │                              │
+│                                              ▼                              │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    UI Module (display.py, hud.py)                   │   │
+│   │  ┌────────────────────────┐    ┌──────────────────────────────────┐ │   │
+│   │  │    HUD Renderer        │    │      Display Window              │ │   │
+│   │  │  (metrics, history)    │    │    (OpenCV, keyboard)            │ │   │
+│   │  └────────────────────────┘    └──────────────────────────────────┘ │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                              │                              │
+│                                              ▼                              │
+│                           ┌─────────────────────────────────────────────┐   │
+│                           │               User Screen                   │   │
+│                           └─────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+COMPLETE DATA FLOW (PER FRAME):
+
+1. VIDEO CAPTURE
+   Tello drone streams H.264 video at 720p @ 30fps
+   └─▶ VideoStream yields Frame objects (image + metadata)
+
+2. POSE ESTIMATION
+   Frame image → MediaPipe PoseLandmarker
+   └─▶ 33 body landmarks with (x, y, z, visibility)
+   └─▶ Converted to custom Pose dataclass
+
+3. LANDMARK SMOOTHING
+   Raw landmarks → Kalman Filter (per landmark)
+   └─▶ Reduces jitter while preserving motion signals
+   └─▶ Tracks position and velocity estimates
+
+4. JUMP DETECTION
+   Hip position (average of left/right hip) tracked over time
+   └─▶ Velocity calculated: v = current_y - previous_y
+   └─▶ State machine transitions:
+       IDLE ──(v < -8)──▶ TAKEOFF
+       TAKEOFF ──(2+ frames)──▶ AIRBORNE
+       AIRBORNE ──(v > +8)──▶ LANDING
+       LANDING ──(stable 3 frames)──▶ IDLE + emit JumpEvent
+
+5. HEIGHT CALCULATION
+   When jump completes:
+   └─▶ displacement_px = (baseline_hip_y - peak_hip_y) × frame_height
+   └─▶ height_cm = displacement_px / calibration.px_per_cm
+   └─▶ Optional: trajectory fitting (parabola) for sub-frame peak
+
+6. OVERLAY RENDERING
+   Annotate frame with:
+   └─▶ Skeleton overlay (14 bone connections)
+   └─▶ Hip center marker (yellow circle)
+   └─▶ Trajectory path during jump (magenta line)
+   └─▶ Text metrics (jump count, last height, max, avg)
+
+7. HUD RENDERING
+   Add dashboard elements:
+   └─▶ Metrics panel (semi-transparent background)
+   └─▶ Phase indicator (color-coded: IDLE/TAKEOFF/AIRBORNE/LANDING)
+   └─▶ Jump history bar chart
+   └─▶ Battery and FPS display
+
+8. DISPLAY OUTPUT
+   OpenCV window shows final rendered frame
+   └─▶ Poll keyboard for controls (q, c, r, s, space)
+
+================================================================================
+                         5. CORE MODULES DEEP DIVE
+================================================================================
+
+------------------------------------------------------------------------------
+5.1 POSE ESTIMATION (src/vision/pose.py)
+------------------------------------------------------------------------------
+
+CLASS: PoseEstimator
+
+WHAT IT DOES:
+Wraps MediaPipe's pose detection to extract 33 body landmarks from video frames.
+
+KEY IMPLEMENTATION DETAILS:
+
+1. MODEL LOADING:
+   - Uses MediaPipe Tasks API (v2, modern approach)
+   - Model: "pose_landmarker_heavy.task" (float16 precision, most accurate)
+   - Auto-downloads from Google Cloud Storage if not cached locally
+   - Alternative models: lite (fast, less accurate), full (balanced)
+
+2. DETECTION FLOW:
+   Frame (BGR) → RGB conversion → mp.Image → detect_for_video() → results
+
+3. LANDMARK CONVERSION:
+   MediaPipe returns normalized (0-1) coordinates relative to frame size
+   └─▶ Converted to custom Landmark dataclass
+   └─▶ Grouped into Pose object with confidence score
+
+4. KEY LANDMARKS USED:
+   Index | Name           | Purpose
+   ------+----------------+----------------------------------
+   0     | NOSE           | Head reference for calibration
+   11    | LEFT_SHOULDER  | Upper body tracking
+   12    | RIGHT_SHOULDER |
+   23    | LEFT_HIP       | Primary jump measurement point
+   24    | RIGHT_HIP      | (hip_center = average of 23+24)
+   25    | LEFT_KNEE      | Lower body tracking
+   26    | RIGHT_KNEE     |
+   27    | LEFT_ANKLE     | Foot position
+   28    | RIGHT_ANKLE    |
+   29    | LEFT_HEEL      | Ground contact detection
+   30    | RIGHT_HEEL     |
+
+5. VISIBILITY FILTERING:
+   Each landmark has visibility score (0-1)
+   └─▶ Filtered at threshold 0.5 for rendering
+   └─▶ Pose confidence = mean visibility of all landmarks
+
+USAGE:
+    with PoseEstimator() as estimator:
+        pose = estimator.estimate(frame)
+        if pose:
+            hip_y = pose.get_hip_center().y
+
+------------------------------------------------------------------------------
+5.2 JUMP DETECTION STATE MACHINE (src/analysis/detector.py)
+------------------------------------------------------------------------------
+
+CLASS: JumpDetector
+
+WHAT IT DOES:
+Tracks hip position over time and detects complete jump cycles using a
+finite state machine. Outputs JumpEvent when a jump completes.
+
+STATE MACHINE:
+
+    ┌──────────────────────────────────────────────────────────────────┐
+    │                                                                   │
+    │  ┌───────┐   velocity < -8    ┌──────────┐   2+ frames           │
+    │  │ IDLE  │ ─────────────────▶ │ TAKEOFF  │ ────────────┐         │
+    │  └───────┘                    └──────────┘             │         │
+    │      ▲                                                 ▼         │
+    │      │                                          ┌──────────┐     │
+    │      │ stable 3 frames                          │ AIRBORNE │     │
+    │      │                                          └──────────┘     │
+    │  ┌───────┐                                             │         │
+    │  │LANDING│ ◀───────────────────────────────────────────┘         │
+    │  └───────┘              velocity > +8                            │
+    │                                                                   │
+    └──────────────────────────────────────────────────────────────────┘
+
+STATE DETAILS:
+
+1. IDLE
+   - Normal standing/waiting state
+   - Monitors hip velocity for upward motion
+   - Transition: velocity < -8 px/frame → TAKEOFF
+
+2. TAKEOFF
+   - Athlete beginning to jump
+   - Records baseline hip position (standing reference)
+   - Starts tracking trajectory: [(frame_idx, hip_y), ...]
+   - Transition: sustained for 2+ frames → AIRBORNE
+
+3. AIRBORNE
+   - Athlete in the air
+   - Tracks peak position (minimum y = highest point)
+   - Records all trajectory points
+   - Validates: min 5 frames, max 60 frames (2 seconds)
+   - Transition: velocity > +8 px/frame → LANDING
+
+4. LANDING
+   - Athlete returning to ground
+   - Checks position stability (within 0.05 normalized units)
+   - Transition: stable for 3 frames → IDLE + emit JumpEvent
+
+JUMP EVENT OUTPUT:
+    JumpEvent(
+        takeoff_frame=101,
+        peak_frame=105,
+        landing_frame=116,
+        baseline_hip_y=0.605,  # normalized
+        peak_hip_y=0.35,       # normalized
+        trajectory=[(101, 0.55), (102, 0.48), ..., (116, 0.60)],
+        airborne_frames=15,
+        confidence=0.92
+    )
+
+DESIGN NOTES:
+- Pure logic, no I/O or OpenCV dependencies
+- Easy to unit test with mock pose sequences
+- Supports batch processing: detect_jumps_batch(pose_sequence)
+
+------------------------------------------------------------------------------
+5.3 HEIGHT CALCULATION (src/analysis/calculator.py)
+------------------------------------------------------------------------------
+
+CLASS: HeightCalculator
+
+WHAT IT DOES:
+Converts normalized hip displacement to physical height (cm) using
+calibration data.
+
+CALCULATION METHODS:
+
+1. SIMPLE DISPLACEMENT (Primary):
+   displacement_normalized = baseline_hip_y - peak_hip_y
+   displacement_px = displacement_normalized × frame_height (e.g., 720)
+   height_cm = displacement_px / px_per_cm
+
+   Example:
+   - baseline_hip_y = 0.605, peak_hip_y = 0.35
+   - displacement = 0.605 - 0.35 = 0.255
+   - displacement_px = 0.255 × 720 = 183.6 px
+   - calibration = 3.7 px/cm
+   - height = 183.6 / 3.7 = 49.6 cm
+
+2. TRAJECTORY FITTING (Advanced):
+   Fits parabola to trajectory points: y = ax² + bx + c
+   └─▶ Finds mathematical peak (vertex) between frame samples
+   └─▶ More accurate than frame-based peak when fps is low
+   └─▶ Requires minimum 5 trajectory points
+   └─▶ Returns R² goodness-of-fit score
+
+3. PHYSICS VALIDATION:
+   Uses kinematic equations to cross-check:
+   └─▶ expected_height = 0.5 × g × (airborne_time/2)²
+   └─▶ Tolerance: ±30% of expected
+   └─▶ Flags measurements that violate physics
+
+DESIGN NOTES:
+- Pure functions, no side effects
+- Accepts JumpEvent + frame_height + CalibrationProfile
+- Returns height_cm + optional fit_quality + physics_valid
+
+------------------------------------------------------------------------------
+5.4 CALIBRATION SYSTEM (src/vision/calibration.py)
+------------------------------------------------------------------------------
+
+CLASS: Calibrator
+
+WHAT IT DOES:
+Establishes pixel-to-cm conversion ratio for accurate measurements.
+
+CALIBRATION METHODS:
+
+1. ARUCO MARKER (Most Accurate):
+   - Detects printed ArUco marker in frame
+   - Uses OpenCV's ArUco detection (cv2.aruco)
+   - Calculates: px_per_cm = marker_px_size / known_marker_cm
+   - Default: 15cm marker, DICT_4X4_50 dictionary
+   - Best accuracy when marker is at same distance as athlete
+
+2. KNOWN HEIGHT (Person-Based):
+   - User provides their standing height (e.g., 180 cm)
+   - System detects nose and ankles from pose
+   - Calculates: px_per_cm = (feet_y - head_y) × frame_h / height_cm
+   - Quick setup, good accuracy if pose detection is stable
+
+3. MANUAL OVERRIDE:
+   - User directly specifies px_per_cm value
+   - Expert mode for custom setups
+
+CALIBRATION PROFILE:
+    CalibrationProfile(
+        px_per_cm=3.7,
+        method=CalibrationMethod.ARUCO_MARKER,
+        distance_cm=250.0,
+        timestamp=datetime.now(),
+        reference_size_cm=15.0
+    )
+
+PERSISTENCE:
+- Profiles saved as JSON files in data/calibration/
+- Can be loaded at startup for consistent measurements
+
+ACCURACY CONSIDERATIONS:
+- ArUco works best at same distance as athlete (250cm typical)
+- Perspective distortion affects accuracy near frame edges
+- Re-calibrate if drone moves or zoom changes
+
+------------------------------------------------------------------------------
+5.5 KALMAN FILTERING (src/vision/filters.py)
+------------------------------------------------------------------------------
+
+CLASS: KalmanFilter2D
+
+WHAT IT DOES:
+Smooths noisy landmark positions while preserving motion signals.
+Reduces jitter without losing jump velocity information.
+
+HOW IT WORKS:
+
+State Vector: [x, y, vx, vy] (position + velocity)
+
+1. PREDICT STEP:
+   x_pred = F @ x_prev          # Constant velocity model
+   P_pred = F @ P @ F.T + Q     # Update uncertainty
+
+   Transition matrix F:
+   [1, 0, dt, 0 ]   # x = x + vx*dt
+   [0, 1, 0 , dt]   # y = y + vy*dt
+   [0, 0, 1 , 0 ]   # vx = vx
+   [0, 0, 0 , 1 ]   # vy = vy
+
+2. UPDATE STEP:
+   z = [measured_x, measured_y]
+   K = P @ H.T @ inv(S)         # Kalman gain
+   x = x_pred + K @ (z - H @ x_pred)
+   P = (I - K @ H) @ P_pred
+
+TUNING PARAMETERS:
+- process_noise (Q): Trust in motion model (default 0.01)
+- measurement_noise (R): Trust in observations (default 0.1)
+- Higher Q → More responsive to changes
+- Higher R → Smoother but more lag
+
+CLASS: LandmarkSmoother
+
+Maintains one KalmanFilter2D per landmark index.
+Preserves velocity estimates for each landmark.
+
+ALTERNATIVE: SmoothingFilter
+- Simple moving average over window (default 5 frames)
+- Less sophisticated but computationally cheaper
+
+------------------------------------------------------------------------------
+5.6 PIPELINE ORCHESTRATION (src/pipeline/processor.py)
+------------------------------------------------------------------------------
+
+CLASS: FrameProcessor
+
+WHAT IT DOES:
+Coordinates all modules into a unified processing pipeline.
+Single entry point for frame processing.
+
+INITIALIZATION:
+    processor = FrameProcessor(
+        pose_estimator=PoseEstimator(),
+        jump_detector=JumpDetector(settings),
+        height_calculator=HeightCalculator(),
+        calibration=CalibrationProfile(...),
+        overlay_renderer=OverlayRenderer()
+    )
+
+PROCESS_FRAME() FLOW:
+    def process_frame(frame: Frame) -> ProcessedFrame:
+        # 1. Pose estimation
+        pose = self.pose_estimator.estimate(frame)
+
+        # 2. Landmark smoothing
+        if pose:
+            pose = self.smoother.smooth(pose)
+
+        # 3. Jump detection
+        jump_event = None
+        if pose:
+            jump_event = self.detector.update(pose)
+
+        # 4. Height calculation
+        if jump_event:
+            height = self.calculator.calculate(
+                jump_event, frame.height, self.calibration
+            )
+            self.metrics.add_jump(jump_event)
+
+        # 5. Overlay rendering
+        rendered = self.overlay.render(
+            frame, pose, self.detector.phase,
+            self.metrics, self.trajectory
+        )
+
+        return ProcessedFrame(frame, pose, phase, jump_event, rendered)
+
+ADDITIONAL METHODS:
+- calibrate_with_aruco(frame): Run calibration routine
+- reset_session(): Clear jump history
+- get_session_stats(): Return SessionStats
+- shutdown(): Clean up resources
+
+------------------------------------------------------------------------------
+5.7 UI & HUD RENDERING (src/ui/)
+------------------------------------------------------------------------------
+
+CLASS: DisplayWindow (display.py)
+
+WHAT IT DOES:
+Manages OpenCV window for displaying frames and handling keyboard input.
+
+KEY BINDINGS:
+    Key     | Action
+    --------+---------------------------
+    q       | Quit application
+    c       | Run calibration
+    r       | Reset session statistics
+    s       | Save current session
+    space   | Pause/resume tracking
+    ESC     | Quit application
+
+METHODS:
+- open(): Create named window
+- close(): Destroy window
+- show_frame(image): Display frame
+- poll_key() → KeyAction: Check for input
+- show_message(text): Display overlay message
+
+CLASS: HUDRenderer (hud.py)
+
+WHAT IT DOES:
+Renders heads-up display elements onto frames.
+
+HUD ELEMENTS:
+
+1. METRICS PANEL (top-left):
+   ┌────────────────────────┐
+   │ Jumps: 5               │
+   │ Last: 49.6 cm          │
+   │ Max:  52.1 cm          │
+   │ Avg:  48.3 cm          │
+   └────────────────────────┘
+
+2. PHASE INDICATOR (top-center):
+   Color-coded current phase:
+   - IDLE: Gray
+   - TAKEOFF: Yellow
+   - AIRBORNE: Green
+   - LANDING: Orange
+
+3. HISTORY CHART (bottom):
+   Bar chart showing last N jumps
+
+4. STATUS BAR (bottom-right):
+   - Battery: 87%
+   - FPS: 28.5
+   - Calibration: 3.70 px/cm (ARUCO)
+
+================================================================================
+                        6. CONFIGURATION SYSTEM
+================================================================================
+
+FILE: src/core/config.py
+
+The project uses Pydantic Settings for configuration management.
+All settings can be overridden via environment variables or .env file.
+
+SETTINGS STRUCTURE:
+
+Settings (root)
+├── drone: DroneSettings
+├── pose: PoseSettings
+├── jump: JumpDetectionSettings
+├── filter: FilterSettings
+├── calibration: CalibrationSettings
+├── ui: UISettings
+└── logging: LoggingSettings
+
+CONFIGURATION DETAILS:
+
+1. DRONE SETTINGS (TELLO_*)
+   - TELLO_IP: "192.168.10.1" (default Tello IP)
+   - TELLO_VIDEO_PORT: 11111
+   - TELLO_CMD_PORT: 8889
+   - TELLO_TIMEOUT: 10.0 (seconds)
+   - TELLO_HOVER_HEIGHT: 100 (cm)
+
+2. POSE SETTINGS (POSE_*)
+   - POSE_MODEL_COMPLEXITY: 2 (0=lite, 1=full, 2=heavy)
+   - POSE_MIN_DETECTION_CONFIDENCE: 0.5
+   - POSE_MIN_TRACKING_CONFIDENCE: 0.5
+
+3. JUMP DETECTION (JUMP_*)
+   - JUMP_VELOCITY_THRESHOLD: 8.0 (px/frame)
+   - JUMP_MIN_AIRBORNE_FRAMES: 5
+   - JUMP_MAX_AIRBORNE_FRAMES: 60
+   - JUMP_STABILITY_FRAMES: 3
+
+4. FILTER SETTINGS (KALMAN_*, SMOOTHING_*)
+   - KALMAN_PROCESS_NOISE: 0.01
+   - KALMAN_MEASUREMENT_NOISE: 0.1
+   - SMOOTHING_WINDOW_SIZE: 5
+
+5. CALIBRATION (ARUCO_*, CALIBRATION_*)
+   - ARUCO_DICTIONARY: "DICT_4X4_50"
+   - ARUCO_MARKER_SIZE_CM: 15.0
+   - CALIBRATION_DEFAULT_PX_PER_CM: 4.0
+   - CALIBRATION_REFERENCE_DISTANCE_CM: 250.0
+
+6. UI SETTINGS (DISPLAY_*, SHOW_*)
+   - DISPLAY_WIDTH: 960
+   - DISPLAY_HEIGHT: 720
+   - SHOW_SKELETON: true
+   - SHOW_TRAJECTORY: true
+   - SHOW_METRICS: true
+   - SHOW_DEBUG: false
+
+7. LOGGING (LOG_*)
+   - LOG_LEVEL: "INFO"
+   - LOG_FILE: null (or path to log file)
+
+USAGE:
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    threshold = settings.jump.velocity_threshold
+
+================================================================================
+                        7. TESTING INFRASTRUCTURE
+================================================================================
+
+LOCATION: tests/
+
+TEST FILES:
+
+1. conftest.py - Pytest fixtures
+   - sample_landmark(): Single landmark with visibility
+   - sample_pose(): Full pose with 9 key joints
+   - standing_pose_sequence(): 30 frames stationary (no jump)
+   - jump_pose_sequence(): 45 frames simulating complete jump
+   - calibration_profile(): Sample 5 px/cm calibration
+   - jump_detection_settings(): Detection parameters
+   - sample_jump_event(): Complete jump event
+
+2. test_detector.py - Jump detection tests (6 tests)
+   - Initial IDLE state verification
+   - No false positives on standing poses
+   - Jump detection in realistic sequences
+   - Detector reset functionality
+   - Handling missing hip landmarks
+   - Batch vs incremental detection equivalence
+
+3. test_calculator.py - Height calculation tests (10 tests)
+   - Positive height calculation
+   - Zero displacement yields zero height
+   - Height scaling with calibration
+   - Trajectory fitting (parabola)
+   - Physics validation
+   - Velocity estimation
+
+4. test_calibration.py - Calibration tests (10 tests)
+   - Uncalibrated initial state
+   - Manual calibration
+   - Default fallback profile
+   - Height-based calibration
+   - Save/load profiles (JSON)
+   - Error handling
+   - Unit conversion
+
+5. test_filters.py - Filter tests (11 tests)
+   - Kalman 2D filter behavior
+   - Moving average smoothing
+   - Per-landmark smoothing
+   - Velocity estimation
+
+RUNNING TESTS:
+
+    # Run all tests
+    poetry run pytest
+
+    # Run with verbose output
+    poetry run pytest -v
+
+    # Run specific test file
+    poetry run pytest tests/test_detector.py
+
+    # Run with coverage
+    poetry run pytest --cov=src --cov-report=term-missing
+
+    # Generate HTML coverage report
+    poetry run pytest --cov=src --cov-report=html:htmlcov
+
+================================================================================
+                        8. DEVELOPMENT WORKFLOW
+================================================================================
+
+INITIAL SETUP:
+
+    # Clone repository
+    git clone https://github.com/fatokik/vert-tracker.git
+    cd vert-tracker
+
+    # Install dependencies with Poetry
+    poetry install
+
+    # Set up pre-commit hooks
+    poetry run pre-commit install
+
+    # Configure environment
+    cp .env.example .env
+    # Edit .env as needed
+
+RUNNING THE APPLICATION:
+
+    # With Tello drone (connect to Tello WiFi first)
+    poetry run vert-tracker
+
+    # Demo mode (uses webcam, no drone required)
+    poetry run vert-tracker --demo
+
+CODE QUALITY COMMANDS:
+
+    # Lint code
+    poetry run ruff check .
+
+    # Auto-format code
+    poetry run ruff format .
+
+    # Type check
+    poetry run mypy src
+
+    # Run all pre-commit hooks
+    poetry run pre-commit run --all-files
+
+UTILITY SCRIPTS:
+
+    # Interactive calibration
+    poetry run python scripts/calibrate.py
+
+    # Record session for offline analysis
+    poetry run python scripts/record_session.py
+
+    # Validate measurement accuracy
+    poetry run python scripts/validate_accuracy.py
+
+PRE-COMMIT HOOKS:
+When you commit, these checks run automatically:
+- Ruff linting (with auto-fix)
+- Ruff formatting
+- MyPy type checking
+- Trailing whitespace removal
+- End-of-file fixing
+- YAML validation
+- Large file detection (max 1000 KB)
+- Merge conflict detection
+
+================================================================================
+                            9. CURRENT STATUS
+================================================================================
+
+PROJECT STATUS: Work in Progress
+
+WHAT'S IMPLEMENTED:
+- Project structure and configuration system
+- Core type definitions and exceptions
+- MediaPipe Tasks API integration (pose.py)
+- Kalman filtering (filters.py)
+- Jump detection state machine (detector.py)
+- Height calculation (calculator.py)
+- Calibration system (calibration.py)
+- Frame processing pipeline (processor.py)
+- UI display and HUD (display.py, hud.py)
+- Overlay rendering (overlay.py)
+- Metrics tracking (metrics.py)
+- Comprehensive test suite
+
+DEVELOPMENT MILESTONES (from README):
+- M1: Tello connection + video streaming      [In Progress]
+- M2: MediaPipe pose overlay                  [Done - Tasks API]
+- M3: Calibration system                      [Done]
+- M4: Jump detection state machine            [Done]
+- M5: Height calculation with validation      [Done]
+- M6: Real-time UI with history               [Partial]
+- M7: Polish and robustness                   [Not Started]
+
+RECENT CHANGES (from git log):
+- ee4343e: Modified project structure, removed redundant directory
+- f2e7fa7: Switched pose.py to MediaPipe Tasks API (v2)
+- bc83d0a: Initial scaffolding, tests still WIP
+- 668ae6a: Initial commit
+
+KNOWN ISSUES / TODO:
+- Drone streaming integration needs testing with actual hardware
+- Demo mode fallback (webcam) needs verification
+- End-to-end integration testing needed
+- Performance optimization for real-time processing
+- Error handling for network disconnections
+
+================================================================================
+                          10. QUICK REFERENCE
+================================================================================
+
+KEY FILES BY CONCERN:
+
+Business Logic (Pure, Testable):
+  src/analysis/detector.py    - Jump detection state machine
+  src/analysis/calculator.py  - Height calculation
+  src/analysis/metrics.py     - Session statistics
+
+Hardware Integration:
+  src/drone/controller.py     - Tello drone control
+  src/drone/stream.py         - Video streaming
+
+ML/Vision:
+  src/vision/pose.py          - MediaPipe pose estimation
+  src/vision/calibration.py   - Pixel-to-cm calibration
+  src/vision/filters.py       - Kalman filtering
+
+User Interface:
+  src/ui/display.py           - OpenCV window management
+  src/ui/hud.py               - HUD rendering
+
+Orchestration:
+  src/main.py                 - Application entry point
+  src/pipeline/processor.py   - Frame processing coordinator
+
+Configuration:
+  src/core/config.py          - Pydantic settings
+  src/core/types.py           - Data classes
+  .env.example                - Environment template
+
+KEYBOARD SHORTCUTS (runtime):
+  q / ESC  → Quit
+  c        → Calibrate
+  r        → Reset session
+  s        → Save session
+  space    → Pause/resume
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
