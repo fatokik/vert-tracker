@@ -187,7 +187,8 @@ def run_demo_mode() -> int:
         display.open()
 
         frame_idx = 0
-        start_time = time.time()
+        session_start_time = time.time()  # Never reset - used for frame timestamps
+        fps_start_time = time.time()  # Reset periodically for FPS calculation
         fps = 0.0
         frame_count = 0
 
@@ -214,7 +215,7 @@ def run_demo_mode() -> int:
 
             frame = Frame(
                 image=image,
-                timestamp=time.time() - start_time,
+                timestamp=time.time() - session_start_time,
                 index=frame_idx,
             )
             frame_idx += 1
@@ -239,11 +240,11 @@ def run_demo_mode() -> int:
 
             # Update FPS
             frame_count += 1
-            elapsed = time.time() - start_time
+            elapsed = time.time() - fps_start_time
             if frame_count >= 30:
                 fps = frame_count / elapsed
                 frame_count = 0
-                start_time = time.time()
+                fps_start_time = time.time()
 
         return 0
 

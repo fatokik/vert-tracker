@@ -17,7 +17,8 @@ from core.logging import get_logger
 from core.types import Frame, Landmark, Pose
 
 if TYPE_CHECKING:
-    pass
+    from mediapipe.tasks.python.vision import PoseLandmarker
+    from mediapipe.tasks.python.vision.pose_landmarker import PoseLandmarkerResult
 
 logger = get_logger(__name__)
 
@@ -64,7 +65,7 @@ class PoseEstimator:
             settings: Pose estimation settings (uses defaults if None)
         """
         self.settings = settings or PoseSettings()
-        self._landmarker: vision.PoseLandmarker | None = None
+        self._landmarker: PoseLandmarker | None = None  # pyright: ignore[reportInvalidTypeForm]
         self._initialized = False
 
     @property
@@ -129,7 +130,7 @@ class PoseEstimator:
 
         try:
             # Convert BGR to RGB
-            rgb_image = cv2.cvtColor(frame.image, cv2.COLOR_BGR2RGB)
+            rgb_image = cv2.cvtColor(frame.image, cv2.COLOR_BGR2RGB)  # pyright: ignore[reportArgumentType]
 
             # Create MediaPipe Image
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
@@ -149,7 +150,7 @@ class PoseEstimator:
             logger.error("Pose estimation failed: %s", e)
             raise PoseEstimationError(f"Estimation failed: {e}") from e
 
-    def _convert_results(self, results: vision.PoseLandmarkerResult, frame: Frame) -> Pose:
+    def _convert_results(self, results: PoseLandmarkerResult, frame: Frame) -> Pose:
         """Convert MediaPipe results to Pose dataclass.
 
         Args:
