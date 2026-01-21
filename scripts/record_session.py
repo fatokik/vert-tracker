@@ -14,10 +14,11 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-from vert_tracker.core.config import get_settings
-from vert_tracker.core.logging import get_logger, setup_logging
-from vert_tracker.drone.controller import TelloController
-from vert_tracker.drone.stream import VideoStream
+
+from core.config import get_settings
+from core.logging import get_logger, setup_logging
+from drone.controller import TelloController
+from drone.stream import VideoStream
 
 logger = get_logger(__name__)
 
@@ -54,7 +55,7 @@ def record_from_drone(
     width, height = first_frame.dimensions
 
     # Create video writer
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # pyright: ignore[reportAttributeAccessIssue]
     writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
 
     if not writer.isOpened():
@@ -144,7 +145,7 @@ def record_from_webcam(
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # pyright: ignore[reportAttributeAccessIssue]
     writer = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
 
     logger.info(

@@ -15,13 +15,14 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from vert_tracker.analysis.calculator import HeightCalculator
-from vert_tracker.analysis.detector import detect_jumps_batch
-from vert_tracker.core.config import get_settings
-from vert_tracker.core.logging import get_logger, setup_logging
-from vert_tracker.core.types import CalibrationProfile, Frame, JumpEvent, Pose
-from vert_tracker.vision.calibration import Calibrator
-from vert_tracker.vision.pose import PoseEstimator
+
+from analysis.calculator import HeightCalculator
+from analysis.detector import detect_jumps_batch
+from core.config import get_settings
+from core.logging import get_logger, setup_logging
+from core.types import CalibrationProfile, Frame, JumpEvent, Pose
+from vision.calibration import Calibrator
+from vision.pose import PoseEstimator
 
 logger = get_logger(__name__)
 
@@ -85,7 +86,7 @@ def process_video(
                 break
 
             frame = Frame(
-                image=image,
+                image=image,  # pyright: ignore[reportArgumentType]
                 timestamp=frame_idx / fps,
                 index=frame_idx,
             )
@@ -246,10 +247,10 @@ def compute_summary(
         total_jumps_detected=len(results),
         total_jumps_reference=total_references,
         matched_jumps=len(matched),
-        mean_absolute_error_cm=np.mean(errors),
-        std_error_cm=np.std(errors),
+        mean_absolute_error_cm=np.mean(errors),  # pyright: ignore[reportArgumentType]
+        std_error_cm=np.std(errors),  # pyright: ignore[reportArgumentType]
         max_error_cm=max(errors),
-        mean_error_percent=np.mean(error_pcts) if error_pcts else None,
+        mean_error_percent=np.mean(error_pcts) if error_pcts else None,  # pyright: ignore[reportArgumentType]
     )
 
 
@@ -358,7 +359,7 @@ def main() -> int:
         calibrator = Calibrator()
         calibration = calibrator.load_profile(args.calibration)
     else:
-        from vert_tracker.core.types import CalibrationMethod
+        from core.types import CalibrationMethod
 
         calibration = CalibrationProfile(
             px_per_cm=args.px_per_cm,
