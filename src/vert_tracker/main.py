@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -18,6 +19,7 @@ from vert_tracker.drone.stream import VideoStream
 from vert_tracker.pipeline.processor import FrameProcessor
 from vert_tracker.ui.display import DisplayWindow, KeyAction
 from vert_tracker.ui.hud import HUDRenderer
+from vert_tracker.vision.calibration import Calibrator, bootstrap_calibration
 
 logger = get_logger(__name__)
 
@@ -158,7 +160,21 @@ def draw_mode_overlay(
     return output
 
 
-def run_tracking_session() -> int:
+def build_processor(
+    calibration_path: Path | None = None,
+) -> FrameProcessor:
+    """Create a FrameProcessor with bootstrapped calibration."""
+    settings = get_settings()
+    calibrator = Calibrator(settings.calibration)
+    profile, is_calibrated = bootstrap_calibration(calibrator, path=calibration_path)
+    return FrameProcessor(
+        settings,
+        calibration=profile,
+        is_calibrated=is_calibrated,
+    )
+
+
+def run_tracking_session(calibration_path: Path | None = None) -> int:
     """Run the main tracking session.
 
     Returns:
@@ -172,7 +188,7 @@ def run_tracking_session() -> int:
     # Initialize components
     controller = TelloController(settings.drone)
     display = DisplayWindow(settings.ui)
-    processor = FrameProcessor(settings)
+    processor = build_processor(calibration_path)
     hud = HUDRenderer(settings.ui)
     flight: FlightSession | None = None
 
@@ -318,7 +334,7 @@ def run_tracking_session() -> int:
         logger.info("Vert Tracker stopped")
 
 
-def run_demo_mode() -> int:
+def run_demo_mode(calibration_path: Path | None = None) -> int:
     """Run in demo mode without drone (for testing UI).
 
     Uses webcam or generates synthetic frames.
@@ -334,7 +350,7 @@ def run_demo_mode() -> int:
     logger.info("Starting demo mode (no drone)")
 
     display = DisplayWindow(settings.ui)
-    processor = FrameProcessor(settings)
+    processor = build_processor(calibration_path)
     hud = HUDRenderer(settings.ui)
 
     # Try webcam
@@ -437,6 +453,12 @@ def main() -> None:
         help="Run in demo mode without drone (uses webcam)",
     )
     parser.add_argument(
+        "--calibration",
+        type=Path,
+        default=None,
+        help="Path to calibration profile JSON (default: data/calibration/profile.json)",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug logging",
@@ -449,7 +471,10 @@ def main() -> None:
 
         os.environ["LOG_LEVEL"] = "DEBUG"
 
-    exit_code = run_demo_mode() if args.demo else run_tracking_session()
+    if args.demo:
+        exit_code = run_demo_mode(calibration_path=args.calibration)
+    else:
+        exit_code = run_tracking_session(calibration_path=args.calibration)
     sys.exit(exit_code)
 
 

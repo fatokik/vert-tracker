@@ -24,8 +24,22 @@ logger = get_logger(__name__)
 
 # Model download URL and local path
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
-MODEL_DIR = Path(__file__).parent.parent.parent.parent / "data" / "models"
-MODEL_PATH = MODEL_DIR / "pose_landmarker_heavy.task"
+MODEL_FILENAME = "pose_landmarker_heavy.task"
+
+
+def resolve_project_root() -> Path:
+    """Locate repository root by walking up from this file to pyproject.toml."""
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    # Fallback: vision/ -> vert_tracker/ -> src/ -> repo
+    return here.parents[3]
+
+
+def default_model_dir() -> Path:
+    """Return the project-local model cache directory under data/models."""
+    return resolve_project_root() / "data" / "models"
 
 
 def _download_model() -> Path:
@@ -37,16 +51,18 @@ def _download_model() -> Path:
     Raises:
         PoseEstimationError: If download fails
     """
-    if MODEL_PATH.exists():
-        return MODEL_PATH
+    model_dir = default_model_dir()
+    model_path = model_dir / MODEL_FILENAME
+    if model_path.exists():
+        return model_path
 
     logger.info("Downloading MediaPipe pose landmarker model...")
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-        logger.info("Model downloaded to %s", MODEL_PATH)
-        return MODEL_PATH
+        urllib.request.urlretrieve(MODEL_URL, model_path)
+        logger.info("Model downloaded to %s", model_path)
+        return model_path
     except Exception as e:
         raise PoseEstimationError(f"Failed to download model: {e}") from e
 

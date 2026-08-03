@@ -57,12 +57,15 @@ class FrameProcessor:
         self,
         settings: Settings | None = None,
         calibration: CalibrationProfile | None = None,
+        *,
+        is_calibrated: bool = False,
     ) -> None:
         """Initialize processor with settings.
 
         Args:
             settings: Application settings (uses defaults if None)
             calibration: Initial calibration profile
+            is_calibrated: True when calibration came from a validated profile file
         """
         self.settings = settings or get_settings()
 
@@ -79,6 +82,9 @@ class FrameProcessor:
         self._calculator = HeightCalculator(self._calibration)
         self._current_trajectory: list[tuple[int, float]] = []
         self._initialized = False
+        # HUD CAL indicator is truthful only when a validated profile was loaded
+        if is_calibrated:
+            self._metrics.stats.calibration = self._calibration
 
     @property
     def stats(self) -> SessionStats:

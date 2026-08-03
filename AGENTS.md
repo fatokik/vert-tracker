@@ -4,27 +4,27 @@
 
 Vert Tracker measures vertical jump height from DJI Tello EDU video using
 MediaPipe pose estimation, calibration, filtering, and a jump-detection state
-machine. It is a Python 3.11+ project managed with Poetry.
+machine. It is a Python 3.11+ project managed with uv.
 
 The project is still a work in progress. Treat drone control and reported
 measurements as safety- and correctness-sensitive.
 
 ## Repository map
 
-- `src/main.py` — CLI entry point and application loop.
-- `src/core/` — settings, shared data types, exceptions, and logging.
-- `src/drone/` — Tello connection, flight commands, and video streaming.
-- `src/vision/` — pose estimation, calibration, filtering, and overlays.
-- `src/analysis/` — jump detection, height calculation, and session metrics.
-- `src/pipeline/processor.py` — per-frame orchestration.
-- `src/ui/` — OpenCV display and HUD rendering.
-- `tests/` — unit tests for analysis, calibration, and filtering.
+- `src/vert_tracker/main.py` — CLI entry point and application loop.
+- `src/vert_tracker/core/` — settings, shared data types, exceptions, logging.
+- `src/vert_tracker/drone/` — Tello control, FlightSession, video streaming.
+- `src/vert_tracker/vision/` — pose estimation, calibration, filters, overlays.
+- `src/vert_tracker/analysis/` — jump detection, height calculation, metrics.
+- `src/vert_tracker/pipeline/processor.py` — per-frame orchestration.
+- `src/vert_tracker/ui/` — OpenCV display and HUD rendering.
+- `tests/` — unit tests for analysis, calibration, filtering, flight session.
 - `scripts/` — calibration, recording, and offline validation utilities.
 - `data/` — runtime models, calibration profiles, sessions, and recordings;
   most contents are intentionally gitignored.
 
-Source lives under `src/vert_tracker/` (`core`, `analysis`, `drone`, and so
-on). Import as `vert_tracker.*`. Do not reintroduce a flat `src/core` layout.
+Source lives under `src/vert_tracker/`. Import as `vert_tracker.*`. Do not
+reintroduce a flat `src/core` layout.
 
 ## Setup and commands
 
@@ -44,10 +44,16 @@ Useful application commands:
 ```bash
 uv run vert-tracker --demo
 uv run vert-tracker
+uv run vert-tracker --calibration data/calibration/profile.json
 uv run python scripts/calibrate.py
 uv run python scripts/record_session.py --demo
 uv run python scripts/validate_accuracy.py <video>
 ```
+
+Session start loads `--calibration` if given, else `data/calibration/profile.json`
+when present; otherwise a settings default is used and HUD CAL stays off.
+MediaPipe models download under `data/models/`. Flight uses RC sticks via
+`FlightSession` with keepalive and land-on-exit.
 
 Prefer demo mode and recorded inputs during development. Running against a
 drone requires connecting to its Wi-Fi network and access to real hardware.

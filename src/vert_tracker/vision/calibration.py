@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from vert_tracker.core.types import CalibrationMethod, CalibrationProfile, Frame
 
 logger = get_logger(__name__)
 
+DEFAULT_CALIBRATION_PATH = Path("data/calibration/profile.json")
+
 # ArUco dictionary mapping
 ARUCO_DICTS = {
     "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
@@ -27,6 +30,61 @@ ARUCO_DICTS = {
     "DICT_6X6_50": cv2.aruco.DICT_6X6_50,
     "DICT_6X6_100": cv2.aruco.DICT_6X6_100,
 }
+
+
+def validate_profile(profile: CalibrationProfile) -> None:
+    """Validate a calibration profile before use.
+
+    Raises:
+        CalibrationError: If values are non-finite or non-positive
+    """
+    if not math.isfinite(profile.px_per_cm) or profile.px_per_cm <= 0:
+        raise CalibrationError(
+            f"px_per_cm must be a positive finite number, got {profile.px_per_cm}"
+        )
+    if not math.isfinite(profile.distance_cm) or profile.distance_cm <= 0:
+        raise CalibrationError(
+            f"distance_cm must be a positive finite number, got {profile.distance_cm}"
+        )
+    if profile.reference_size_cm is not None and (
+        not math.isfinite(profile.reference_size_cm) or profile.reference_size_cm <= 0
+    ):
+        raise CalibrationError(
+            f"reference_size_cm must be positive when set, got {profile.reference_size_cm}"
+        )
+
+
+def bootstrap_calibration(
+    calibrator: Calibrator,
+    path: Path | None = None,
+    *,
+    default_path: Path | None = None,
+) -> tuple[CalibrationProfile, bool]:
+    """Load calibration for session start.
+
+    Order: explicit path → default file if present → settings default (uncalibrated).
+
+    Returns:
+        Tuple of (profile, is_calibrated)
+    """
+    resolved_default = default_path if default_path is not None else DEFAULT_CALIBRATION_PATH
+    candidate = path
+    if candidate is None and resolved_default.exists():
+        candidate = resolved_default
+
+    if candidate is None:
+        profile = calibrator.get_default_profile()
+        validate_profile(profile)
+        logger.info(
+            "Using default calibration %.2f px/cm (uncalibrated)",
+            profile.px_per_cm,
+        )
+        return profile, False
+
+    profile = calibrator.load_profile(candidate)
+    validate_profile(profile)
+    logger.info("Loaded calibration from %s (%.2f px/cm)", candidate, profile.px_per_cm)
+    return profile, True
 
 
 class Calibrator:
@@ -87,9 +145,14 @@ class Calibrator:
         if ids is None or len(ids) == 0:
             raise CalibrationError("No ArUco marker detected in frame")
 
+        if self.settings.aruco_marker_size_cm <= 0:
+            raise CalibrationError("aruco_marker_size_cm must be positive")
+
         # Use first detected marker
         marker_corners = corners[0][0]
         marker_px_size = self._calculate_marker_size(marker_corners)
+        if marker_px_size <= 0:
+            raise CalibrationError("Detected ArUco marker size is invalid")
 
         px_per_cm = marker_px_size / self.settings.aruco_marker_size_cm
 
@@ -100,6 +163,7 @@ class Calibrator:
             timestamp=time.time(),
             reference_size_cm=self.settings.aruco_marker_size_cm,
         )
+        validate_profile(profile)
 
         self._current_profile = profile
         logger.info(
@@ -128,8 +192,13 @@ class Calibrator:
         Returns:
             CalibrationProfile with computed px_per_cm
         """
+        if known_height_cm <= 0:
+            raise CalibrationError("known_height_cm must be positive")
+
         height_normalized = abs(feet_y - head_y)
         height_px = height_normalized * frame.height
+        if height_px <= 0:
+            raise CalibrationError("Measured person height in pixels is invalid")
 
         px_per_cm = height_px / known_height_cm
 
@@ -140,6 +209,7 @@ class Calibrator:
             timestamp=time.time(),
             reference_size_cm=known_height_cm,
         )
+        validate_profile(profile)
 
         self._current_profile = profile
         logger.info(
@@ -166,6 +236,7 @@ class Calibrator:
             distance_cm=self.settings.calibration_distance_cm,
             timestamp=time.time(),
         )
+        validate_profile(profile)
 
         self._current_profile = profile
         logger.info("Manual calibration: %.2f px/cm", px_per_cm)
@@ -178,12 +249,14 @@ class Calibrator:
         Returns:
             Default CalibrationProfile
         """
-        return CalibrationProfile(
+        profile = CalibrationProfile(
             px_per_cm=self.settings.default_px_per_cm,
             method=CalibrationMethod.MANUAL,
             distance_cm=self.settings.calibration_distance_cm,
             timestamp=time.time(),
         )
+        validate_profile(profile)
+        return profile
 
     def _calculate_marker_size(self, corners: NDArray[np.floating[Any]]) -> float:
         """Calculate marker size in pixels from corners.
@@ -265,11 +338,14 @@ class Calibrator:
                 timestamp=data["timestamp"],
                 reference_size_cm=data.get("reference_size_cm"),
             )
+            validate_profile(profile)
 
             self._current_profile = profile
             logger.info("Loaded calibration profile from %s", path)
 
             return profile
 
+        except CalibrationError:
+            raise
         except Exception as e:
             raise CalibrationError(f"Failed to load profile: {e}") from e
