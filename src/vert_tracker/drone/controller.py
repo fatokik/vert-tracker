@@ -15,6 +15,26 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+MIN_MOVE_CM = 20
+MAX_MOVE_CM = 500
+MIN_ROTATE_DEG = 1
+MAX_ROTATE_DEG = 360
+
+
+def clamp_distance_cm(distance_cm: int) -> int:
+    """Clamp movement distance to Tello SDK 2.0 limits (20-500 cm)."""
+    return max(MIN_MOVE_CM, min(MAX_MOVE_CM, int(distance_cm)))
+
+
+def clamp_degrees(degrees: int) -> int:
+    """Clamp rotation angle to Tello SDK 2.0 limits (1-360 deg)."""
+    return max(MIN_ROTATE_DEG, min(MAX_ROTATE_DEG, int(degrees)))
+
+
+def clamp_rc(value: int) -> int:
+    """Clamp an RC stick axis to -100..100."""
+    return max(-100, min(100, int(value)))
+
 
 class TelloController:
     """High-level wrapper for Tello drone control.
@@ -145,12 +165,22 @@ class TelloController:
             else:
                 self.tello.move_down(min(abs(delta), 100))
 
+    def send_rc(self, lr: int, fb: int, ud: int, yaw: int) -> None:
+        """Send non-blocking RC stick velocities (-100..100 per axis)."""
+        self.tello.send_rc_control(
+            clamp_rc(lr),
+            clamp_rc(fb),
+            clamp_rc(ud),
+            clamp_rc(yaw),
+        )
+
     def move_forward(self, distance_cm: int) -> None:
         """Move drone forward.
 
         Args:
             distance_cm: Distance to move (20-500 cm)
         """
+        distance_cm = clamp_distance_cm(distance_cm)
         logger.debug("Moving forward %d cm", distance_cm)
         self.tello.move_forward(distance_cm)
 
@@ -160,6 +190,7 @@ class TelloController:
         Args:
             distance_cm: Distance to move (20-500 cm)
         """
+        distance_cm = clamp_distance_cm(distance_cm)
         logger.debug("Moving backward %d cm", distance_cm)
         self.tello.move_back(distance_cm)
 
@@ -169,6 +200,7 @@ class TelloController:
         Args:
             distance_cm: Distance to move (20-500 cm)
         """
+        distance_cm = clamp_distance_cm(distance_cm)
         logger.debug("Moving left %d cm", distance_cm)
         self.tello.move_left(distance_cm)
 
@@ -178,6 +210,7 @@ class TelloController:
         Args:
             distance_cm: Distance to move (20-500 cm)
         """
+        distance_cm = clamp_distance_cm(distance_cm)
         logger.debug("Moving right %d cm", distance_cm)
         self.tello.move_right(distance_cm)
 
@@ -187,6 +220,7 @@ class TelloController:
         Args:
             distance_cm: Distance to move (20-500 cm)
         """
+        distance_cm = clamp_distance_cm(distance_cm)
         logger.debug("Moving up %d cm", distance_cm)
         self.tello.move_up(distance_cm)
 
@@ -196,6 +230,7 @@ class TelloController:
         Args:
             distance_cm: Distance to move (20-500 cm)
         """
+        distance_cm = clamp_distance_cm(distance_cm)
         logger.debug("Moving down %d cm", distance_cm)
         self.tello.move_down(distance_cm)
 
@@ -205,6 +240,7 @@ class TelloController:
         Args:
             degrees: Rotation angle (1-360 degrees)
         """
+        degrees = clamp_degrees(degrees)
         logger.debug("Rotating clockwise %d degrees", degrees)
         self.tello.rotate_clockwise(degrees)
 
@@ -214,11 +250,12 @@ class TelloController:
         Args:
             degrees: Rotation angle (1-360 degrees)
         """
+        degrees = clamp_degrees(degrees)
         logger.debug("Rotating counter-clockwise %d degrees", degrees)
         self.tello.rotate_counter_clockwise(degrees)
 
     def get_battery(self) -> int:
-        """Get current battery level percentage."""
+        """Get current battery percentage from Tello state stream."""
         return int(self.tello.get_battery())
 
     def get_height(self) -> int:

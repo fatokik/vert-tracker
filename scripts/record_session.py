@@ -262,7 +262,6 @@ def main() -> int:
         controller = TelloController(settings.drone)
         try:
             controller.connect()
-            controller.start_stream()
             frame_count = record_from_drone(
                 controller,
                 args.output,

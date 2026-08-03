@@ -13,6 +13,7 @@ from vert_tracker.core.config import get_settings
 from vert_tracker.core.exceptions import DroneConnectionError, VertTrackerError
 from vert_tracker.core.logging import get_logger, setup_logging
 from vert_tracker.drone.controller import TelloController
+from vert_tracker.drone.flight_session import FlightSession
 from vert_tracker.drone.stream import VideoStream
 from vert_tracker.pipeline.processor import FrameProcessor
 from vert_tracker.ui.display import DisplayWindow, KeyAction
@@ -20,97 +21,57 @@ from vert_tracker.ui.hud import HUDRenderer
 
 logger = get_logger(__name__)
 
-# Flight control constants
-MOVE_DISTANCE_CM = 30  # Distance per keypress
-ROTATE_ANGLE_DEG = 15  # Rotation per keypress
+RC_STICK_ACTIONS = {
+    KeyAction.MOVE_FORWARD,
+    KeyAction.MOVE_BACKWARD,
+    KeyAction.MOVE_LEFT,
+    KeyAction.MOVE_RIGHT,
+    KeyAction.MOVE_UP,
+    KeyAction.MOVE_DOWN,
+    KeyAction.ROTATE_LEFT,
+    KeyAction.ROTATE_RIGHT,
+}
 
 
 def handle_flight_control(
-    controller: TelloController,
+    session: FlightSession,
     action: KeyAction,
     display: DisplayWindow,
-    is_flying: bool,
-) -> bool:
-    """Execute flight control action on the drone.
-
-    Args:
-        controller: Drone controller
-        action: The flight control action to execute
-        display: Display window for error messages
-        is_flying: Whether the drone is currently in flight
-
-    Returns:
-        Updated is_flying state
-    """
+) -> None:
+    """Apply takeoff/land/RC stick input through FlightSession."""
     try:
-        # Handle takeoff/land regardless of flight state
         if action == KeyAction.TAKEOFF:
-            if is_flying:
+            if session.is_airborne:
                 display.show_message("Already in flight!", duration_ms=1000)
             else:
-                logger.info("Taking off...")
                 display.show_message("Taking off...", duration_ms=500)
-                controller.takeoff()
-                logger.info("Takeoff complete")
-                display.show_message("Airborne! Use movement keys.", duration_ms=1500)
-                return True
-            return is_flying
+                session.takeoff()
+                display.show_message("Airborne! Hold movement keys (RC).", duration_ms=1500)
+            return
 
         if action == KeyAction.LAND:
-            if not is_flying:
+            if not session.is_airborne:
                 display.show_message("Not in flight!", duration_ms=1000)
             else:
-                logger.info("Landing...")
                 display.show_message("Landing...", duration_ms=500)
-                controller.land()
-                logger.info("Landed")
+                session.land()
                 display.show_message("Landed safely.", duration_ms=1500)
-                return False
-            return is_flying
+            return
 
-        # Movement commands require the drone to be flying
-        if not is_flying:
-            display.show_message("Press T to takeoff first!", duration_ms=1000)
-            return is_flying
-
-        if action == KeyAction.MOVE_FORWARD:
-            controller.move_forward(MOVE_DISTANCE_CM)
-        elif action == KeyAction.MOVE_BACKWARD:
-            controller.move_backward(MOVE_DISTANCE_CM)
-        elif action == KeyAction.MOVE_LEFT:
-            controller.move_left(MOVE_DISTANCE_CM)
-        elif action == KeyAction.MOVE_RIGHT:
-            controller.move_right(MOVE_DISTANCE_CM)
-        elif action == KeyAction.MOVE_UP:
-            controller.move_up(MOVE_DISTANCE_CM)
-        elif action == KeyAction.MOVE_DOWN:
-            controller.move_down(MOVE_DISTANCE_CM)
-        elif action == KeyAction.ROTATE_LEFT:
-            controller.rotate_counter_clockwise(ROTATE_ANGLE_DEG)
-        elif action == KeyAction.ROTATE_RIGHT:
-            controller.rotate_clockwise(ROTATE_ANGLE_DEG)
+        if action in RC_STICK_ACTIONS:
+            if not session.is_airborne:
+                display.show_message("Press T to takeoff first!", duration_ms=1000)
+                return
+            session.apply_key_action(action)
 
     except Exception as e:
         logger.error("Flight control error: %s", e)
         display.show_message(f"Flight error: {e}", duration_ms=1000)
 
-    return is_flying
-
 
 def is_flight_action(action: KeyAction) -> bool:
     """Check if an action is a flight control action."""
-    return action in {
-        KeyAction.MOVE_FORWARD,
-        KeyAction.MOVE_BACKWARD,
-        KeyAction.MOVE_LEFT,
-        KeyAction.MOVE_RIGHT,
-        KeyAction.MOVE_UP,
-        KeyAction.MOVE_DOWN,
-        KeyAction.ROTATE_LEFT,
-        KeyAction.ROTATE_RIGHT,
-        KeyAction.TAKEOFF,
-        KeyAction.LAND,
-    }
+    return action in RC_STICK_ACTIONS | {KeyAction.TAKEOFF, KeyAction.LAND}
 
 
 def draw_mode_overlay(
@@ -137,10 +98,10 @@ def draw_mode_overlay(
         mode_color = (0, 165, 255)  # Orange
         controls = [
             "T: Takeoff / L: Land",
-            "W/X: Forward/Back",
-            "A/E: Left/Right",
-            "I/J: Up/Down",
-            "U/O: Rotate L/R",
+            "Hold W/X: Fwd/Back (RC)",
+            "Hold A/E: Left/Right",
+            "Hold I/J: Up/Down",
+            "Hold U/O: Rotate",
             "ENTER/P: Start Tracking",
             "Q: Quit",
         ]
@@ -213,19 +174,20 @@ def run_tracking_session() -> int:
     display = DisplayWindow(settings.ui)
     processor = FrameProcessor(settings)
     hud = HUDRenderer(settings.ui)
+    flight: FlightSession | None = None
 
     try:
         # Connect to drone
         logger.info("Connecting to Tello drone...")
         controller.connect()
-        battery = controller.get_battery()
+        flight = FlightSession(controller)
+        battery = flight.battery
         logger.info("Connected (battery: %d%%)", battery)
 
         if battery < 10:
             logger.warning("Low battery! Consider charging before flight.")
 
-        # Start video stream
-        controller.start_stream()
+        # VideoStream.start() owns streamon — do not call start_stream here
         stream = VideoStream(controller)
 
         # Initialize processor
@@ -234,7 +196,7 @@ def run_tracking_session() -> int:
         # Open display
         display.open()
         display.show_message(
-            "Connected! Press T to takeoff, then position with WASD keys",
+            "Connected! Press T to takeoff, then hold W/X/A/E to position (RC)",
             duration_ms=3000,
         )
 
@@ -243,13 +205,12 @@ def run_tracking_session() -> int:
         start_time = time.time()
         fps = 0.0
         is_positioning = True  # Start in positioning mode
-        is_flying = False  # Track if drone is in flight
 
-        logger.info("Starting in positioning mode - press T to takeoff, then use movement keys")
+        logger.info("Starting in positioning mode - press T to takeoff, then hold RC keys")
 
         with stream:
             for frame in stream.frames():
-                battery = controller.get_battery()
+                battery = flight.battery
 
                 if is_positioning:
                     # Positioning mode: show live feed with flight controls overlay
@@ -279,6 +240,7 @@ def run_tracking_session() -> int:
 
                 elif action == KeyAction.TOGGLE_POSITIONING:
                     is_positioning = not is_positioning
+                    flight.clear_sticks()
                     if is_positioning:
                         logger.info("Switched to positioning mode")
                         display.show_message("POSITIONING MODE", duration_ms=1000)
@@ -287,8 +249,7 @@ def run_tracking_session() -> int:
                         display.show_message("TRACKING MODE - Position locked!", duration_ms=1000)
 
                 elif is_positioning and is_flight_action(action):
-                    # Handle flight controls only in positioning mode
-                    is_flying = handle_flight_control(controller, action, display, is_flying)
+                    handle_flight_control(flight, action, display)
 
                 elif not is_positioning:
                     # Handle tracking mode actions
@@ -348,10 +309,12 @@ def run_tracking_session() -> int:
         return 3
 
     finally:
-        # Cleanup
         processor.shutdown()
         display.close()
-        controller.disconnect()
+        if flight is not None:
+            flight.shutdown_safe()
+        else:
+            controller.disconnect()
         logger.info("Vert Tracker stopped")
 
 

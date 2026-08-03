@@ -283,7 +283,6 @@ def main() -> int:
 
     try:
         controller.connect()
-        controller.start_stream()
 
         if args.method == "aruco":
             success = calibrate_with_aruco(calibrator, controller)
