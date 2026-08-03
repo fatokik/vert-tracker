@@ -30,10 +30,26 @@ class KeyAction(Enum):
     TOGGLE_SKELETON = auto()
     TOGGLE_METRICS = auto()
     TOGGLE_DEBUG = auto()
+    # Flight controls (for positioning mode)
+    MOVE_FORWARD = auto()
+    MOVE_BACKWARD = auto()
+    MOVE_LEFT = auto()
+    MOVE_RIGHT = auto()
+    MOVE_UP = auto()
+    MOVE_DOWN = auto()
+    ROTATE_LEFT = auto()
+    ROTATE_RIGHT = auto()
+    # Takeoff/Land
+    TAKEOFF = auto()
+    LAND = auto()
+    # Positioning mode toggle
+    TOGGLE_POSITIONING = auto()  # Enter/P to toggle between positioning and tracking
 
 
 # Key mappings (ASCII codes)
+# Note: Flight controls use non-conflicting keys (W/X/A/E for movement, arrows for height/rotation)
 KEY_BINDINGS: dict[int, KeyAction] = {
+    # General controls
     ord("q"): KeyAction.QUIT,
     ord("Q"): KeyAction.QUIT,
     27: KeyAction.QUIT,  # ESC
@@ -47,6 +63,44 @@ KEY_BINDINGS: dict[int, KeyAction] = {
     ord("k"): KeyAction.TOGGLE_SKELETON,
     ord("m"): KeyAction.TOGGLE_METRICS,
     ord("d"): KeyAction.TOGGLE_DEBUG,
+    # Flight controls (non-conflicting keys)
+    # Horizontal: W=forward, X=backward, A=left, E=right
+    ord("w"): KeyAction.MOVE_FORWARD,
+    ord("W"): KeyAction.MOVE_FORWARD,
+    ord("x"): KeyAction.MOVE_BACKWARD,
+    ord("X"): KeyAction.MOVE_BACKWARD,
+    ord("a"): KeyAction.MOVE_LEFT,
+    ord("A"): KeyAction.MOVE_LEFT,
+    ord("e"): KeyAction.MOVE_RIGHT,
+    ord("E"): KeyAction.MOVE_RIGHT,
+    # Vertical/Rotation: I=up, J=down, U=rotate left, O=rotate right
+    ord("i"): KeyAction.MOVE_UP,
+    ord("I"): KeyAction.MOVE_UP,
+    ord("j"): KeyAction.MOVE_DOWN,
+    ord("J"): KeyAction.MOVE_DOWN,
+    ord("u"): KeyAction.ROTATE_LEFT,
+    ord("U"): KeyAction.ROTATE_LEFT,
+    ord("o"): KeyAction.ROTATE_RIGHT,
+    ord("O"): KeyAction.ROTATE_RIGHT,
+    # Arrow keys (codes vary by platform)
+    0: KeyAction.MOVE_UP,  # Up arrow (macOS)
+    1: KeyAction.MOVE_DOWN,  # Down arrow (macOS)
+    2: KeyAction.ROTATE_LEFT,  # Left arrow (macOS)
+    3: KeyAction.ROTATE_RIGHT,  # Right arrow (macOS)
+    82: KeyAction.MOVE_UP,  # Up arrow (Linux/Windows)
+    84: KeyAction.MOVE_DOWN,  # Down arrow (Linux/Windows)
+    81: KeyAction.ROTATE_LEFT,  # Left arrow (Linux/Windows)
+    83: KeyAction.ROTATE_RIGHT,  # Right arrow (Linux/Windows)
+    # Takeoff/Land
+    ord("t"): KeyAction.TAKEOFF,
+    ord("T"): KeyAction.TAKEOFF,
+    ord("l"): KeyAction.LAND,
+    ord("L"): KeyAction.LAND,
+    # Toggle positioning mode (Enter or P)
+    13: KeyAction.TOGGLE_POSITIONING,  # Enter
+    10: KeyAction.TOGGLE_POSITIONING,  # Enter (alternate)
+    ord("p"): KeyAction.TOGGLE_POSITIONING,
+    ord("P"): KeyAction.TOGGLE_POSITIONING,
 }
 
 
@@ -179,12 +233,18 @@ class DisplayWindow:
         else:
             image = background.copy()
 
-        # Draw message centered
+        # Draw message centered - scale font to fit window width
         font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 1.5
         thickness = 2
+        max_width = int(self._state.width * 0.9)  # Leave 10% margin
 
+        # Start with larger font and scale down if needed
+        font_scale = 1.2
         (text_w, text_h), _ = cv2.getTextSize(message, font, font_scale, thickness)
+        while text_w > max_width and font_scale > 0.4:
+            font_scale -= 0.1
+            (text_w, text_h), _ = cv2.getTextSize(message, font, font_scale, thickness)
+
         x = (self._state.width - text_w) // 2
         y = (self._state.height + text_h) // 2
 

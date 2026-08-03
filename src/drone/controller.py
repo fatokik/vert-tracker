@@ -145,6 +145,78 @@ class TelloController:
             else:
                 self.tello.move_down(min(abs(delta), 100))
 
+    def move_forward(self, distance_cm: int) -> None:
+        """Move drone forward.
+
+        Args:
+            distance_cm: Distance to move (20-500 cm)
+        """
+        logger.debug("Moving forward %d cm", distance_cm)
+        self.tello.move_forward(distance_cm)
+
+    def move_backward(self, distance_cm: int) -> None:
+        """Move drone backward.
+
+        Args:
+            distance_cm: Distance to move (20-500 cm)
+        """
+        logger.debug("Moving backward %d cm", distance_cm)
+        self.tello.move_back(distance_cm)
+
+    def move_left(self, distance_cm: int) -> None:
+        """Move drone left.
+
+        Args:
+            distance_cm: Distance to move (20-500 cm)
+        """
+        logger.debug("Moving left %d cm", distance_cm)
+        self.tello.move_left(distance_cm)
+
+    def move_right(self, distance_cm: int) -> None:
+        """Move drone right.
+
+        Args:
+            distance_cm: Distance to move (20-500 cm)
+        """
+        logger.debug("Moving right %d cm", distance_cm)
+        self.tello.move_right(distance_cm)
+
+    def move_up(self, distance_cm: int) -> None:
+        """Move drone up.
+
+        Args:
+            distance_cm: Distance to move (20-500 cm)
+        """
+        logger.debug("Moving up %d cm", distance_cm)
+        self.tello.move_up(distance_cm)
+
+    def move_down(self, distance_cm: int) -> None:
+        """Move drone down.
+
+        Args:
+            distance_cm: Distance to move (20-500 cm)
+        """
+        logger.debug("Moving down %d cm", distance_cm)
+        self.tello.move_down(distance_cm)
+
+    def rotate_clockwise(self, degrees: int) -> None:
+        """Rotate drone clockwise.
+
+        Args:
+            degrees: Rotation angle (1-360 degrees)
+        """
+        logger.debug("Rotating clockwise %d degrees", degrees)
+        self.tello.rotate_clockwise(degrees)
+
+    def rotate_counter_clockwise(self, degrees: int) -> None:
+        """Rotate drone counter-clockwise.
+
+        Args:
+            degrees: Rotation angle (1-360 degrees)
+        """
+        logger.debug("Rotating counter-clockwise %d degrees", degrees)
+        self.tello.rotate_counter_clockwise(degrees)
+
     def get_battery(self) -> int:
         """Get current battery level percentage."""
         return int(self.tello.get_battery())

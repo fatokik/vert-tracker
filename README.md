@@ -2,6 +2,11 @@
 
 Measure vertical jump height for volleyball training using a DJI Tello EDU drone and computer vision.
 
+## Helpful Links
+
+- https://dl-cdn.ryzerobotics.com/downloads/Tello/Tello%20SDK%202.0%20User%20Guide.pdf
+- https://dl-cdn.ryzerobotics.com/downloads/tello/20180910/Tello%20SDK%20Documentation%20EN_1.3.pdf
+
 ## Features
 
 - **Real-time measurement** - Jump height calculated and displayed live during training
