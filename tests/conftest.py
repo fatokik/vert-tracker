@@ -92,17 +92,23 @@ def jump_pose_sequence() -> list[Pose]:
     # Takeoff phase (5 frames) - moving up. Step size is large enough that
     # the resulting norm/sec velocity crosses the takeoff threshold even at
     # lower frame rates (e.g. 15 FPS), not just the 30 FPS baseline.
+    takeoff_step = 0.03
     for i in range(5):
-        y = baseline_y - (i + 1) * 0.03
+        y = baseline_y - (i + 1) * takeoff_step
         poses.append(_create_pose_at_height(y, frame_idx))
         frame_idx += 1
+    takeoff_end_y = baseline_y - 5 * takeoff_step
 
-    # Airborne phase (15 frames) - parabolic trajectory
-    peak_y = baseline_y - 0.15  # Peak height
+    # Airborne phase (15 frames) - parabolic trajectory.
+    # peak_y is chosen so the parabola's start (t=-1) exactly matches
+    # takeoff_end_y: no spurious velocity spike/discontinuity at the
+    # TAKEOFF -> AIRBORNE boundary that could be misread as a landing.
+    parabola_amplitude = 0.05
+    peak_y = takeoff_end_y - parabola_amplitude
     for i in range(15):
         # Parabolic motion: start at takeoff height, peak at middle, return
         t = (i - 7) / 7.0  # -1 to 1
-        y = peak_y + 0.05 * t * t  # Parabola
+        y = peak_y + parabola_amplitude * t * t  # Parabola
         poses.append(_create_pose_at_height(y, frame_idx))
         frame_idx += 1
 

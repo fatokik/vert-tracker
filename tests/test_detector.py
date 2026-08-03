@@ -53,6 +53,10 @@ class TestJumpDetector:
         assert event.peak_frame > event.takeoff_frame
         assert event.landing_frame > event.peak_frame
         assert event.confidence > 0
+        # Peak must land at the trajectory's true minimum (frame 22, the
+        # parabola vertex), not be misattributed to an earlier frame due to
+        # a spurious velocity spike at the takeoff/airborne boundary.
+        assert event.peak_frame == 22
 
     def test_reset_clears_state(
         self,
@@ -147,6 +151,9 @@ def test_detects_jump_at_15fps(
     events = detect_jumps_batch(poses, jump_detection_settings)
     assert len(events) == 1
     assert events[0].airborne_time_s > 0
+    # Peak frame index is spatial (frame_idx-based), independent of the
+    # timestamp scale, so it should match the 30 FPS case exactly.
+    assert events[0].peak_frame == 22
 
 
 def test_non_positive_dt_skips_without_crash(
