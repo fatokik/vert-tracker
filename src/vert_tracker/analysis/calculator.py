@@ -42,17 +42,23 @@ class HeightCalculator:
     def calculate_height(
         self,
         event: JumpEvent,
-        frame_height: int = 720,
+        frame_height: int,
     ) -> float:
         """Calculate jump height in centimeters.
 
         Args:
             event: Jump event with trajectory data
-            frame_height: Video frame height in pixels
+            frame_height: Video frame height in pixels (must be positive)
 
         Returns:
             Jump height in centimeters
+
+        Raises:
+            ValueError: If frame_height is not positive
         """
+        if frame_height <= 0:
+            raise ValueError(f"frame_height must be positive, got {frame_height}")
+
         # Convert normalized displacement to pixels
         displacement_normalized = event.baseline_hip_y - event.peak_hip_y
         displacement_px = displacement_normalized * frame_height
@@ -65,7 +71,7 @@ class HeightCalculator:
     def calculate_with_trajectory_fit(
         self,
         event: JumpEvent,
-        frame_height: int = 720,
+        frame_height: int,
     ) -> tuple[float, TrajectoryFit]:
         """Calculate height using parabolic trajectory fitting.
 
@@ -74,11 +80,17 @@ class HeightCalculator:
 
         Args:
             event: Jump event with trajectory data
-            frame_height: Video frame height in pixels
+            frame_height: Video frame height in pixels (must be positive)
 
         Returns:
             Tuple of (height_cm, trajectory_fit)
+
+        Raises:
+            ValueError: If frame_height is not positive
         """
+        if frame_height <= 0:
+            raise ValueError(f"frame_height must be positive, got {frame_height}")
+
         if len(event.trajectory) < 5:
             # Not enough points for fitting
             height = self.calculate_height(event, frame_height)
@@ -162,8 +174,7 @@ class HeightCalculator:
     def validate_with_physics(
         self,
         height_cm: float,
-        airborne_frames: int,
-        fps: float = 30.0,
+        airborne_time_s: float,
     ) -> tuple[bool, float]:
         """Validate calculated height against physics model.
 
@@ -172,17 +183,16 @@ class HeightCalculator:
 
         Args:
             height_cm: Calculated jump height
-            airborne_frames: Number of frames airborne
-            fps: Video frame rate
+            airborne_time_s: Airborne duration in seconds
 
         Returns:
             Tuple of (is_valid, physics_predicted_height_cm)
         """
-        # Airborne time in seconds
-        airborne_time = airborne_frames / fps
+        if airborne_time_s <= 0:
+            return False, 0.0
 
         # Time to peak is half of airborne time (symmetric trajectory)
-        time_to_peak = airborne_time / 2
+        time_to_peak = airborne_time_s / 2
 
         # Using h = 0.5 * g * t^2 (free fall from peak)
         g = 980.0  # cm/s^2
@@ -202,7 +212,7 @@ class HeightCalculator:
 def calculate_jump_height(
     event: JumpEvent,
     calibration: CalibrationProfile,
-    frame_height: int = 720,
+    frame_height: int,
 ) -> float:
     """Pure function to calculate jump height.
 
@@ -220,19 +230,27 @@ def calculate_jump_height(
 
 def estimate_vertical_velocity(
     trajectory: list[tuple[int, float]],
-    frame_height: int = 720,
-    fps: float = 30.0,
+    frame_height: int,
+    fps: float,
 ) -> list[tuple[int, float]]:
     """Estimate vertical velocity from trajectory.
 
     Args:
         trajectory: List of (frame_idx, hip_y_normalized) points
-        frame_height: Frame height in pixels
-        fps: Video frame rate
+        frame_height: Frame height in pixels (must be positive)
+        fps: Video frame rate (must be positive)
 
     Returns:
         List of (frame_idx, velocity_cm_per_s) points
+
+    Raises:
+        ValueError: If frame_height or fps is not positive
     """
+    if frame_height <= 0 or fps <= 0:
+        raise ValueError(
+            f"frame_height and fps must be positive, got frame_height={frame_height}, fps={fps}"
+        )
+
     if len(trajectory) < 2:
         return []
 

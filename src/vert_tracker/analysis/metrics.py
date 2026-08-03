@@ -81,7 +81,7 @@ class MetricsTracker:
         self.stats.add_jump(event)
 
         # Compute metrics
-        airborne_time = event.airborne_frames / 30.0  # Assuming 30fps
+        airborne_time = event.airborne_time_s
 
         # Estimate peak velocity from displacement and time
         # v = sqrt(2 * g * h)
@@ -234,6 +234,10 @@ def export_session_data(
             "height_cm": j.height_cm,
             "confidence": j.confidence,
             "airborne_frames": j.airborne_frames,
+            "airborne_time_s": j.airborne_time_s,
+            "takeoff_timestamp": j.takeoff_timestamp,
+            "peak_timestamp": j.peak_timestamp,
+            "landing_timestamp": j.landing_timestamp,
         }
         for j in stats.jumps
     ]
@@ -275,6 +279,9 @@ def import_session_data(path: Path) -> SessionStats:
             confidence=j["confidence"],
             peak_hip_y=0.0,
             baseline_hip_y=0.0,
+            takeoff_timestamp=j.get("takeoff_timestamp", 0.0),
+            peak_timestamp=j.get("peak_timestamp", 0.0),
+            landing_timestamp=j.get("landing_timestamp", 0.0),
         )
         stats.add_jump(event)
 
