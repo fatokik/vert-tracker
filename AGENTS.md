@@ -23,32 +23,30 @@ measurements as safety- and correctness-sensitive.
 - `data/` — runtime models, calibration profiles, sessions, and recordings;
   most contents are intentionally gitignored.
 
-Source packages currently live directly below `src` (`core`, `analysis`,
-`drone`, and so on). The README and tests still contain references to a
-`vert_tracker` package that does not exist. Do not introduce a third import
-layout; resolve this mismatch consistently when changing packaging.
+Source lives under `src/vert_tracker/` (`core`, `analysis`, `drone`, and so
+on). Import as `vert_tracker.*`. Do not reintroduce a flat `src/core` layout.
 
 ## Setup and commands
 
-Use Poetry for the project environment:
+Use uv for the project environment (Python 3.11+):
 
 ```bash
-poetry install
-poetry run pytest
-poetry run ruff check .
-poetry run ruff format --check .
-poetry run mypy src
-poetry run pre-commit run --all-files
+uv sync --all-groups
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy src
+uv run pre-commit run --all-files
 ```
 
 Useful application commands:
 
 ```bash
-poetry run vert-tracker --demo
-poetry run vert-tracker
-poetry run python scripts/calibrate.py
-poetry run python scripts/record_session.py --demo
-poetry run python scripts/validate_accuracy.py <video>
+uv run vert-tracker --demo
+uv run vert-tracker
+uv run python scripts/calibrate.py
+uv run python scripts/record_session.py --demo
+uv run python scripts/validate_accuracy.py <video>
 ```
 
 Prefer demo mode and recorded inputs during development. Running against a

@@ -15,10 +15,10 @@ from pathlib import Path
 
 import cv2
 
-from core.config import get_settings
-from core.logging import get_logger, setup_logging
-from drone.controller import TelloController
-from drone.stream import VideoStream
+from vert_tracker.core.config import get_settings
+from vert_tracker.core.logging import get_logger, setup_logging
+from vert_tracker.drone.controller import TelloController
+from vert_tracker.drone.stream import VideoStream
 
 logger = get_logger(__name__)
 

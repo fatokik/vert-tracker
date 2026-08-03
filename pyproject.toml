@@ -1,42 +1,38 @@
-[tool.poetry]
+[project]
 name = "vert-tracker"
 version = "0.1.0"
 description = "Measure vertical jump height using a DJI Tello EDU drone and computer vision"
-authors = ["Your Name <you@example.com>"]
-license = "MIT"
 readme = "README.md"
-packages = [
-    { include = "core", from = "src" },
-    { include = "analysis", from = "src" },
-    { include = "drone", from = "src" },
-    { include = "pipeline", from = "src" },
-    { include = "ui", from = "src" },
-    { include = "vision", from = "src" },
-    { include = "main.py", from = "src" },
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Your Name", email = "you@example.com" }]
+dependencies = [
+    "djitellopy>=2.5.0,<3",
+    "mediapipe>=0.10.9,<0.11",
+    "opencv-python>=4.9.0,<5",
+    "numpy>=1.26.0,<2",
+    "scipy>=1.12.0,<2",
+    "pydantic-settings>=2.1.0,<3",
 ]
 
-[tool.poetry.scripts]
-vert-tracker = "main:main"
+[project.scripts]
+vert-tracker = "vert_tracker.main:main"
 
-[tool.poetry.dependencies]
-python = "^3.11"
-djitellopy = "^2.5.0"
-mediapipe = "^0.10.9"
-opencv-python = "^4.9.0"
-numpy = "^1.26.0"
-scipy = "^1.12.0"
-pydantic-settings = "^2.1.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"
-pytest-cov = "^4.1.0"
-ruff = "^0.2.0"
-mypy = "^1.8.0"
-pre-commit = "^3.6.0"
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0,<9",
+    "pytest-cov>=4.1.0,<5",
+    "ruff>=0.2.0,<0.3",
+    "mypy>=1.8.0,<2",
+    "pre-commit>=3.6.0,<4",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vert_tracker"]
 
 [tool.ruff]
 line-length = 100
@@ -47,7 +43,7 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["core", "analysis", "drone", "pipeline", "ui", "vision"]
+known-first-party = ["vert_tracker"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -79,7 +75,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = [
     "-v",
-    "--cov=src",
+    "--cov=vert_tracker",
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
 ]

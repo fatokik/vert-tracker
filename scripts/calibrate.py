@@ -16,12 +16,12 @@ from pathlib import Path
 
 import cv2
 
-from core.config import get_settings
-from core.logging import get_logger, setup_logging
-from drone.controller import TelloController
-from drone.stream import VideoStream
-from vision.calibration import Calibrator
-from vision.pose import PoseEstimator
+from vert_tracker.core.config import get_settings
+from vert_tracker.core.logging import get_logger, setup_logging
+from vert_tracker.drone.controller import TelloController
+from vert_tracker.drone.stream import VideoStream
+from vert_tracker.vision.calibration import Calibrator
+from vert_tracker.vision.pose import PoseEstimator
 
 logger = get_logger(__name__)
 
@@ -143,7 +143,7 @@ def calibrate_with_height(
 
             if pose is not None:
                 # Draw skeleton preview
-                from core.types import LandmarkIndex
+                from vert_tracker.core.types import LandmarkIndex
 
                 nose = pose.get_landmark(LandmarkIndex.NOSE)
                 left_ankle = pose.get_landmark(LandmarkIndex.LEFT_ANKLE)
@@ -185,7 +185,7 @@ def calibrate_with_height(
                 return False
             elif key == ord("c") and pose is not None:
                 try:
-                    from core.types import LandmarkIndex
+                    from vert_tracker.core.types import LandmarkIndex
 
                     nose = pose.get_landmark(LandmarkIndex.NOSE)
                     left_ankle = pose.get_landmark(LandmarkIndex.LEFT_ANKLE)

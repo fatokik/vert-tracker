@@ -16,13 +16,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from analysis.calculator import HeightCalculator
-from analysis.detector import detect_jumps_batch
-from core.config import get_settings
-from core.logging import get_logger, setup_logging
-from core.types import CalibrationProfile, Frame, JumpEvent, Pose
-from vision.calibration import Calibrator
-from vision.pose import PoseEstimator
+from vert_tracker.analysis.calculator import HeightCalculator
+from vert_tracker.analysis.detector import detect_jumps_batch
+from vert_tracker.core.config import get_settings
+from vert_tracker.core.logging import get_logger, setup_logging
+from vert_tracker.core.types import CalibrationProfile, Frame, JumpEvent, Pose
+from vert_tracker.vision.calibration import Calibrator
+from vert_tracker.vision.pose import PoseEstimator
 
 logger = get_logger(__name__)
 
@@ -359,7 +359,7 @@ def main() -> int:
         calibrator = Calibrator()
         calibration = calibrator.load_profile(args.calibration)
     else:
-        from core.types import CalibrationMethod
+        from vert_tracker.core.types import CalibrationMethod
 
         calibration = CalibrationProfile(
             px_per_cm=args.px_per_cm,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from vert_tracker.analysis.calculator import (
     HeightCalculator,
     calculate_jump_height,

@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from core.config import UISettings
-from core.types import JumpEvent, SessionStats
+from vert_tracker.core.config import UISettings
+from vert_tracker.core.types import JumpEvent, SessionStats
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
