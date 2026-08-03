@@ -10,9 +10,11 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
+from vert_tracker.analysis.metrics import export_session_data
 from vert_tracker.core.config import get_settings
 from vert_tracker.core.exceptions import DroneConnectionError, VertTrackerError
 from vert_tracker.core.logging import get_logger, setup_logging
+from vert_tracker.core.types import SessionStats
 from vert_tracker.drone.controller import TelloController
 from vert_tracker.drone.flight_session import FlightSession
 from vert_tracker.drone.stream import VideoStream
@@ -22,6 +24,28 @@ from vert_tracker.ui.hud import HUDRenderer
 from vert_tracker.vision.calibration import Calibrator, bootstrap_calibration
 
 logger = get_logger(__name__)
+
+DEFAULT_SESSION_DIR = Path("data/sessions")
+
+
+def save_session_stats(stats: SessionStats, directory: Path | None = None) -> Path:
+    """Persist session statistics to a timestamped JSON file.
+
+    Args:
+        stats: Session statistics to export
+        directory: Output directory (defaults to `data/sessions`)
+
+    Returns:
+        Path to the written session file
+
+    Raises:
+        OSError: If the file could not be written
+    """
+    out_dir = directory or DEFAULT_SESSION_DIR
+    path = out_dir / f"session_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    export_session_data(stats, path)
+    return path
+
 
 RC_STICK_ACTIONS = {
     KeyAction.MOVE_FORWARD,
@@ -285,8 +309,15 @@ def run_tracking_session(calibration_path: Path | None = None) -> int:
 
                     elif action == KeyAction.SAVE:
                         logger.info("Save requested")
-                        # TODO: Implement session saving
-                        display.show_message("Session saved!", duration_ms=1000)
+                        try:
+                            saved_path = save_session_stats(processor.stats)
+                            display.show_message(
+                                f"Saved {processor.stats.jump_count} jumps -> {saved_path}",
+                                duration_ms=2000,
+                            )
+                        except OSError as e:
+                            logger.exception("Session save failed")
+                            display.show_message(f"Save failed: {e}", duration_ms=2000)
 
                     elif action == KeyAction.PAUSE:
                         if display.is_paused:
@@ -418,6 +449,17 @@ def run_demo_mode(calibration_path: Path | None = None) -> int:
             action = display.poll_key(wait_ms=1)
             if action == KeyAction.QUIT:
                 break
+            elif action == KeyAction.SAVE:
+                logger.info("Save requested")
+                try:
+                    saved_path = save_session_stats(processor.stats)
+                    display.show_message(
+                        f"Saved {processor.stats.jump_count} jumps -> {saved_path}",
+                        duration_ms=2000,
+                    )
+                except OSError as e:
+                    logger.exception("Session save failed")
+                    display.show_message(f"Save failed: {e}", duration_ms=2000)
 
             # Update FPS
             frame_count += 1

@@ -64,7 +64,7 @@ uv run vert-tracker --demo
 - `q` / `Esc` - Quit (lands safely if airborne)
 - `c` - Run calibration
 - `r` - Reset session statistics
-- `s` - Save current session
+- `s` - Save current session to `data/sessions/session_<timestamp>.json`
 - `Space` - Pause/resume tracking
 - `Enter` / `p` - Toggle positioning vs tracking mode
 
@@ -174,19 +174,18 @@ The system targets ±2-3 cm accuracy under optimal conditions:
 
 ```bash
 # Run tests
-poetry run pytest
+uv run pytest
 
 # Run with coverage
-poetry run pytest --cov
+uv run pytest --cov
 
 # Lint and format
-poetry run ruff check .
-poetry run ruff format .
+uv run ruff check .
+uv run ruff format .
 
 # Type checking
-poetry run mypy src
+uv run mypy src
 ```
-
 ## License
 
 MIT License - see LICENSE file for details.

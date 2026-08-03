@@ -27,6 +27,34 @@ from vert_tracker.vision.pose import PoseEstimator
 logger = get_logger(__name__)
 
 
+def resolve_capture_frame_height(
+    cap: cv2.VideoCapture,
+    sample_image: np.ndarray | None,
+) -> int:
+    """Resolve the video frame height while the capture is still open.
+
+    Prefers the capture's own reported property, falling back to a sample
+    frame's shape if the property is unavailable (returns 0 on some
+    backends/containers).
+
+    Args:
+        cap: Open video capture to query
+        sample_image: A frame already read from `cap`, used as a fallback
+
+    Returns:
+        Frame height in pixels
+
+    Raises:
+        ValueError: If no height could be determined
+    """
+    prop = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    if prop > 0:
+        return prop
+    if sample_image is not None and sample_image.ndim >= 2:
+        return int(sample_image.shape[0])
+    raise ValueError("Could not determine video frame height")
+
+
 @dataclass
 class ValidationResult:
     """Result of validating a single jump."""
@@ -76,6 +104,8 @@ def process_video(
 
     poses: list[Pose] = []
     frame_idx = 0
+    first_image: np.ndarray | None = None
+    frame_height: int
 
     logger.info("Processing video: %s", video_path)
 
@@ -84,6 +114,9 @@ def process_video(
             ret, image = cap.read()
             if not ret:
                 break
+
+            if first_image is None:
+                first_image = image
 
             frame = Frame(
                 image=image,  # pyright: ignore[reportArgumentType]
@@ -100,6 +133,10 @@ def process_video(
             if frame_idx % 100 == 0:
                 logger.info("Processed %d frames...", frame_idx)
 
+        # Must resolve while `cap` is still open; some backends report 0
+        # for CAP_PROP_FRAME_HEIGHT once the capture has been released.
+        frame_height = resolve_capture_frame_height(cap, first_image)
+
     finally:
         cap.release()
         pose_estimator.close()
@@ -111,11 +148,10 @@ def process_video(
 
     # Calculate heights
     calculator = HeightCalculator(calibration)
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     calculated_events = []
     for event in events:
-        jump_height = calculator.calculate_height(event, height)
+        jump_height = calculator.calculate_height(event, frame_height)
         calculated_events.append(
             JumpEvent(
                 takeoff_frame=event.takeoff_frame,

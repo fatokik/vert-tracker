@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import urllib.request
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -40,6 +41,31 @@ def resolve_project_root() -> Path:
 def default_model_dir() -> Path:
     """Return the project-local model cache directory under data/models."""
     return resolve_project_root() / "data" / "models"
+
+
+def landmark_visibility(lm: object) -> float:
+    """Extract a landmark's visibility score, preserving a true zero.
+
+    MediaPipe landmarks report visibility as a float where 0.0 is a
+    meaningful "not visible" signal. A naive `getattr(...) or 1.0` treats
+    0.0 as falsy and silently promotes it to fully visible, which corrupts
+    confidence calculations. This helper only defaults to 1.0 when the
+    attribute is genuinely absent (e.g. bare landmarks with no visibility
+    field), and otherwise clamps to the valid [0, 1] range.
+
+    Args:
+        lm: Landmark-like object, expected to optionally expose `visibility`
+
+    Returns:
+        Visibility score clamped to [0.0, 1.0]
+    """
+    raw = getattr(lm, "visibility", None)
+    if raw is None:
+        return 1.0
+    value = float(raw)
+    if not math.isfinite(value):
+        return 0.0
+    return min(1.0, max(0.0, value))
 
 
 def _download_model() -> Path:
@@ -191,12 +217,12 @@ class PoseEstimator:
 
         total_visibility = 0.0
         for idx, lm in enumerate(pose_landmarks):
-            visibility = getattr(lm, "visibility", 1.0) or 1.0
+            visibility = landmark_visibility(lm)
             landmarks[idx] = Landmark(
                 x=float(lm.x),
                 y=float(lm.y),
                 z=float(lm.z),
-                visibility=float(visibility),
+                visibility=visibility,
             )
             total_visibility += visibility
 
