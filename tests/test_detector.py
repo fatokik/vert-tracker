@@ -128,3 +128,45 @@ class TestDetectJumpsBatch:
                 incremental_events.append(event)
 
         assert len(batch_events) == len(incremental_events)
+
+
+def test_detects_jump_at_15fps(
+    jump_pose_sequence: list[Pose],
+    jump_detection_settings: JumpDetectionSettings,
+) -> None:
+    """Same spatial trajectory at 15 FPS timestamps should still detect."""
+    poses = [
+        Pose(
+            landmarks=p.landmarks,
+            timestamp=p.frame_idx / 15.0,
+            frame_idx=p.frame_idx,
+            confidence=p.confidence,
+        )
+        for p in jump_pose_sequence
+    ]
+    events = detect_jumps_batch(poses, jump_detection_settings)
+    assert len(events) == 1
+    assert events[0].airborne_time_s > 0
+
+
+def test_non_positive_dt_skips_without_crash(
+    jump_detection_settings: JumpDetectionSettings,
+    sample_pose: Pose,
+) -> None:
+    detector = JumpDetector(jump_detection_settings)
+    p0 = Pose(landmarks=sample_pose.landmarks, timestamp=1.0, frame_idx=0, confidence=0.9)
+    p1 = Pose(landmarks=sample_pose.landmarks, timestamp=1.0, frame_idx=1, confidence=0.9)
+    assert detector.update(p0) is None
+    assert detector.update(p1) is None
+    assert detector.current_phase == JumpPhase.IDLE
+
+
+def test_event_includes_timestamps(
+    jump_pose_sequence: list[Pose],
+    jump_detection_settings: JumpDetectionSettings,
+) -> None:
+    events = detect_jumps_batch(jump_pose_sequence, jump_detection_settings)
+    assert len(events) == 1
+    e = events[0]
+    assert e.landing_timestamp > e.takeoff_timestamp
+    assert e.peak_timestamp >= e.takeoff_timestamp

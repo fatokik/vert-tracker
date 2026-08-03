@@ -36,10 +36,10 @@ class JumpDetectionSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="JUMP_")
 
-    takeoff_velocity_threshold: float = -8.0
-    landing_velocity_threshold: float = 8.0
-    min_airborne_frames: int = 5
-    max_airborne_frames: int = 60
+    takeoff_velocity_threshold: float = -0.333  # normalized units / sec
+    landing_velocity_threshold: float = 0.333
+    min_airborne_s: float = 0.167
+    max_airborne_s: float = 2.0
     landing_stability_frames: int = 3
 
 

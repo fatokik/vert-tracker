@@ -126,6 +126,9 @@ def process_video(
                 peak_hip_y=event.peak_hip_y,
                 baseline_hip_y=event.baseline_hip_y,
                 trajectory=event.trajectory,
+                takeoff_timestamp=event.takeoff_timestamp,
+                peak_timestamp=event.peak_timestamp,
+                landing_timestamp=event.landing_timestamp,
             )
         )
 

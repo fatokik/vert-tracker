@@ -158,6 +158,9 @@ class JumpEvent:
         peak_hip_y: Hip Y position at peak (normalized)
         baseline_hip_y: Hip Y position at takeoff (normalized)
         trajectory: List of (frame_idx, hip_y) points during jump
+        takeoff_timestamp: Pose timestamp (seconds) when feet left ground
+        peak_timestamp: Pose timestamp (seconds) at maximum height
+        landing_timestamp: Pose timestamp (seconds) when feet returned to ground
     """
 
     takeoff_frame: int
@@ -168,11 +171,19 @@ class JumpEvent:
     peak_hip_y: float
     baseline_hip_y: float
     trajectory: list[tuple[int, float]] = field(default_factory=list)
+    takeoff_timestamp: float = 0.0
+    peak_timestamp: float = 0.0
+    landing_timestamp: float = 0.0
 
     @property
     def airborne_frames(self) -> int:
         """Number of frames athlete was airborne."""
         return self.landing_frame - self.takeoff_frame
+
+    @property
+    def airborne_time_s(self) -> float:
+        """Airborne duration in seconds, derived from pose timestamps."""
+        return max(0.0, self.landing_timestamp - self.takeoff_timestamp)
 
     @property
     def displacement_normalized(self) -> float:

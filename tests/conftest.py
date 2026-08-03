@@ -89,9 +89,11 @@ def jump_pose_sequence() -> list[Pose]:
         poses.append(_create_pose_at_height(baseline_y, frame_idx))
         frame_idx += 1
 
-    # Takeoff phase (5 frames) - moving up
+    # Takeoff phase (5 frames) - moving up. Step size is large enough that
+    # the resulting norm/sec velocity crosses the takeoff threshold even at
+    # lower frame rates (e.g. 15 FPS), not just the 30 FPS baseline.
     for i in range(5):
-        y = baseline_y - (i + 1) * 0.02
+        y = baseline_y - (i + 1) * 0.03
         poses.append(_create_pose_at_height(y, frame_idx))
         frame_idx += 1
 
@@ -164,10 +166,10 @@ def sample_jump_event() -> JumpEvent:
 def jump_detection_settings() -> JumpDetectionSettings:
     """Create jump detection settings for testing."""
     return JumpDetectionSettings(
-        takeoff_velocity_threshold=-8.0,
-        landing_velocity_threshold=8.0,
-        min_airborne_frames=5,
-        max_airborne_frames=60,
+        takeoff_velocity_threshold=-0.333,
+        landing_velocity_threshold=0.333,
+        min_airborne_s=0.167,
+        max_airborne_s=2.0,
         landing_stability_frames=3,
     )
 

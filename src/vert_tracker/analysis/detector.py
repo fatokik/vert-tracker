@@ -5,11 +5,15 @@ This module is pure logic with NO I/O and NO OpenCV imports.
 
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass, field
 
 from vert_tracker.core.config import JumpDetectionSettings
 from vert_tracker.core.types import JumpEvent, JumpPhase, Pose
+
+# Landing stability threshold in normalized units/sec (~2 px/frame @ 720p/30fps).
+_STABILITY_VELOCITY_NORM_PER_S = 0.083
 
 
 @dataclass
@@ -18,9 +22,11 @@ class DetectorState:
 
     phase: JumpPhase = JumpPhase.IDLE
     takeoff_frame: int = 0
+    takeoff_timestamp: float = 0.0
     baseline_hip_y: float = 0.0
     peak_hip_y: float = 0.0
     peak_frame: int = 0
+    peak_timestamp: float = 0.0
     trajectory: list[tuple[int, float]] = field(default_factory=list)
     stable_frames: int = 0
 
@@ -34,7 +40,9 @@ class JumpDetector:
         AIRBORNE → LANDING: Hip velocity exceeds positive threshold (moving down)
         LANDING → IDLE: Position stabilizes near baseline
 
-    This class is pure logic - no I/O, no OpenCV, no side effects.
+    This class is pure logic - no I/O, no OpenCV, no side effects. Velocity is
+    computed in normalized units per second from consecutive pose timestamps,
+    so detection does not assume any particular frame rate or resolution.
     """
 
     def __init__(self, settings: JumpDetectionSettings | None = None) -> None:
@@ -45,8 +53,9 @@ class JumpDetector:
         """
         self.settings = settings or JumpDetectionSettings()
         self._state = DetectorState()
-        self._velocity_buffer: deque[float] = deque(maxlen=5)
         self._position_buffer: deque[float] = deque(maxlen=10)
+        self._last_timestamp: float | None = None
+        self._last_hip_y: float | None = None
 
     @property
     def current_phase(self) -> JumpPhase:
@@ -61,8 +70,9 @@ class JumpDetector:
     def reset(self) -> None:
         """Reset detector to initial state."""
         self._state = DetectorState()
-        self._velocity_buffer.clear()
         self._position_buffer.clear()
+        self._last_timestamp = None
+        self._last_hip_y = None
 
     def update(self, pose: Pose) -> JumpEvent | None:
         """Process a new pose and detect jump events.
@@ -78,38 +88,47 @@ class JumpDetector:
             return None
 
         hip_y = hip_center.y
-        velocity = self._calculate_velocity(hip_y)
+        velocity = self._calculate_velocity(hip_y, pose.timestamp)
+        if velocity is None:
+            # Invalid dt (non-positive or non-finite): update baseline buffer
+            # but skip state transitions since velocity is meaningless.
+            self._position_buffer.append(hip_y)
+            return None
 
-        # Update position buffer for baseline tracking
         self._position_buffer.append(hip_y)
+        return self._process_state(pose.frame_idx, pose.timestamp, hip_y, velocity)
 
-        # State machine transitions
-        result = self._process_state(pose.frame_idx, hip_y, velocity)
-
-        return result
-
-    def _calculate_velocity(self, hip_y: float) -> float:
-        """Calculate hip vertical velocity.
+    def _calculate_velocity(self, hip_y: float, timestamp: float) -> float | None:
+        """Calculate hip vertical velocity in normalized units per second.
 
         Args:
             hip_y: Current hip Y position (normalized)
+            timestamp: Current pose timestamp in seconds
 
         Returns:
-            Velocity in normalized units per frame (negative = moving up)
+            Velocity in normalized units/sec (negative = moving up), or None
+            if the elapsed time since the previous pose is non-positive or
+            non-finite.
         """
-        if len(self._velocity_buffer) == 0:
-            self._velocity_buffer.append(hip_y)
+        if self._last_timestamp is None or self._last_hip_y is None:
+            self._last_timestamp = timestamp
+            self._last_hip_y = hip_y
             return 0.0
 
-        prev_y = self._velocity_buffer[-1]
-        velocity = hip_y - prev_y
-        self._velocity_buffer.append(hip_y)
+        dt = timestamp - self._last_timestamp
+        prev_y = self._last_hip_y
+        self._last_timestamp = timestamp
+        self._last_hip_y = hip_y
 
-        return velocity
+        if not math.isfinite(dt) or dt <= 0:
+            return None
+
+        return (hip_y - prev_y) / dt
 
     def _process_state(
         self,
         frame_idx: int,
+        timestamp: float,
         hip_y: float,
         velocity: float,
     ) -> JumpEvent | None:
@@ -117,33 +136,31 @@ class JumpDetector:
 
         Args:
             frame_idx: Current frame index
+            timestamp: Current pose timestamp in seconds
             hip_y: Hip Y position (normalized)
-            velocity: Hip velocity (normalized units/frame)
+            velocity: Hip velocity (normalized units/sec)
 
         Returns:
             JumpEvent if jump completed, None otherwise
         """
-        # Scale velocity to approximate pixels/frame for threshold comparison
-        # Assuming ~720p height, multiply by frame height
-        scaled_velocity = velocity * 720
-
         if self._state.phase == JumpPhase.IDLE:
-            return self._handle_idle(frame_idx, hip_y, scaled_velocity)
+            return self._handle_idle(frame_idx, timestamp, hip_y, velocity)
 
         elif self._state.phase == JumpPhase.TAKEOFF:
-            return self._handle_takeoff(frame_idx, hip_y, scaled_velocity)
+            return self._handle_takeoff(frame_idx, timestamp, hip_y, velocity)
 
         elif self._state.phase == JumpPhase.AIRBORNE:
-            return self._handle_airborne(frame_idx, hip_y, scaled_velocity)
+            return self._handle_airborne(frame_idx, timestamp, hip_y, velocity)
 
         elif self._state.phase == JumpPhase.LANDING:
-            return self._handle_landing(frame_idx, hip_y, scaled_velocity)
+            return self._handle_landing(frame_idx, timestamp, hip_y, velocity)
 
         return None
 
     def _handle_idle(
         self,
         frame_idx: int,
+        timestamp: float,
         hip_y: float,
         velocity: float,
     ) -> JumpEvent | None:
@@ -152,9 +169,11 @@ class JumpDetector:
         if velocity < self.settings.takeoff_velocity_threshold:
             self._state.phase = JumpPhase.TAKEOFF
             self._state.takeoff_frame = frame_idx
+            self._state.takeoff_timestamp = timestamp
             self._state.baseline_hip_y = self._get_baseline_position()
             self._state.peak_hip_y = hip_y
             self._state.peak_frame = frame_idx
+            self._state.peak_timestamp = timestamp
             self._state.trajectory = [(frame_idx, hip_y)]
 
         return None
@@ -162,6 +181,7 @@ class JumpDetector:
     def _handle_takeoff(
         self,
         frame_idx: int,
+        timestamp: float,
         hip_y: float,
         velocity: float,
     ) -> JumpEvent | None:
@@ -172,8 +192,10 @@ class JumpDetector:
         if hip_y < self._state.peak_hip_y:
             self._state.peak_hip_y = hip_y
             self._state.peak_frame = frame_idx
+            self._state.peak_timestamp = timestamp
 
-        # Transition to airborne once we've moved significantly
+        # Transition to airborne once we've moved significantly (YAGNI: keep
+        # this as a 2-sample confirmation rather than a second time threshold)
         frames_since_takeoff = frame_idx - self._state.takeoff_frame
         if frames_since_takeoff >= 2:
             self._state.phase = JumpPhase.AIRBORNE
@@ -188,6 +210,7 @@ class JumpDetector:
     def _handle_airborne(
         self,
         frame_idx: int,
+        timestamp: float,
         hip_y: float,
         velocity: float,
     ) -> JumpEvent | None:
@@ -198,6 +221,7 @@ class JumpDetector:
         if hip_y < self._state.peak_hip_y:
             self._state.peak_hip_y = hip_y
             self._state.peak_frame = frame_idx
+            self._state.peak_timestamp = timestamp
 
         # Check for landing (downward velocity exceeds threshold)
         if velocity > self.settings.landing_velocity_threshold:
@@ -205,8 +229,8 @@ class JumpDetector:
             self._state.stable_frames = 0
 
         # Safety check: abort if airborne too long
-        airborne_frames = frame_idx - self._state.takeoff_frame
-        if airborne_frames > self.settings.max_airborne_frames:
+        airborne_s = timestamp - self._state.takeoff_timestamp
+        if airborne_s > self.settings.max_airborne_s:
             self._state.phase = JumpPhase.IDLE
             self._state.trajectory.clear()
 
@@ -215,6 +239,7 @@ class JumpDetector:
     def _handle_landing(
         self,
         frame_idx: int,
+        timestamp: float,
         hip_y: float,
         velocity: float,
     ) -> JumpEvent | None:
@@ -223,7 +248,7 @@ class JumpDetector:
 
         # Check for position stability near baseline
         baseline_diff = abs(hip_y - self._state.baseline_hip_y)
-        velocity_stable = abs(velocity) < 2.0  # Small threshold
+        velocity_stable = abs(velocity) < _STABILITY_VELOCITY_NORM_PER_S
 
         if baseline_diff < 0.05 and velocity_stable:
             self._state.stable_frames += 1
@@ -233,9 +258,9 @@ class JumpDetector:
         # Confirm landing after stable frames
         if self._state.stable_frames >= self.settings.landing_stability_frames:
             # Validate jump duration
-            airborne_frames = frame_idx - self._state.takeoff_frame
-            if airborne_frames >= self.settings.min_airborne_frames:
-                event = self._create_jump_event(frame_idx)
+            airborne_s = timestamp - self._state.takeoff_timestamp
+            if airborne_s >= self.settings.min_airborne_s:
+                event = self._create_jump_event(frame_idx, timestamp)
                 self._state.phase = JumpPhase.IDLE
                 self._state.trajectory.clear()
                 return event
@@ -256,11 +281,12 @@ class JumpDetector:
         mid = len(positions) // 2
         return positions[mid]
 
-    def _create_jump_event(self, landing_frame: int) -> JumpEvent:
+    def _create_jump_event(self, landing_frame: int, landing_timestamp: float) -> JumpEvent:
         """Create a JumpEvent from current state.
 
         Args:
             landing_frame: Frame index of landing
+            landing_timestamp: Pose timestamp (seconds) of landing
 
         Returns:
             Completed JumpEvent
@@ -275,6 +301,9 @@ class JumpDetector:
             peak_hip_y=self._state.peak_hip_y,
             baseline_hip_y=self._state.baseline_hip_y,
             trajectory=list(self._state.trajectory),
+            takeoff_timestamp=self._state.takeoff_timestamp,
+            peak_timestamp=self._state.peak_timestamp,
+            landing_timestamp=landing_timestamp,
         )
 
     def _calculate_confidence(self) -> float:

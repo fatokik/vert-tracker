@@ -170,6 +170,9 @@ class FrameProcessor:
                 peak_hip_y=jump_event.peak_hip_y,
                 baseline_hip_y=jump_event.baseline_hip_y,
                 trajectory=jump_event.trajectory,
+                takeoff_timestamp=jump_event.takeoff_timestamp,
+                peak_timestamp=jump_event.peak_timestamp,
+                landing_timestamp=jump_event.landing_timestamp,
             )
             self._metrics.add_jump(jump_event)
             logger.info(
