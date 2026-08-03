@@ -55,11 +55,13 @@ when present; otherwise a settings default is used and HUD CAL stays off.
 MediaPipe models download under `data/models/`. Flight uses RC sticks via
 `FlightSession` with keepalive and land-on-exit.
 
-Jump detection (`JumpDetector`) drives phase transitions from pose
-timestamps rather than frame counts, so behavior is correct regardless of
-FPS or dropped frames; `JUMP_MIN_AIRBORNE_S` / `JUMP_MAX_AIRBORNE_S` are
-expressed in seconds. Pressing `s` during a tracking session writes the
-current `SessionStats` via `main.save_session_stats` /
+Jump detection (`JumpDetector`) computes velocity and the min/max airborne
+duration check from pose timestamps (in seconds via `JUMP_MIN_AIRBORNE_S` /
+`JUMP_MAX_AIRBORNE_S`), so those checks are correct regardless of FPS or
+dropped frames. Takeoff confirmation (TAKEOFF → AIRBORNE) and landing
+stability (LANDING → IDLE) still count consecutive samples/frame indices,
+so their timing is FPS-dependent. Pressing `s` during a tracking session
+writes the current `SessionStats` via `main.save_session_stats` /
 `analysis.metrics.export_session_data` to
 `data/sessions/session_<timestamp>.json`; the UI only reports success after
 the file has actually been written.

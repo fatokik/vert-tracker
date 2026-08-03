@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from vert_tracker.core.types import CalibrationMethod, CalibrationProfile, JumpEvent, SessionStats
 from vert_tracker.main import save_session_stats
 
@@ -48,12 +50,20 @@ def test_save_session_stats_writes_file_under_directory(tmp_path: Path) -> None:
     assert data["jumps"][0]["height_cm"] == 42.0
 
 
-def test_save_session_stats_defaults_to_data_sessions_directory() -> None:
+def test_save_session_stats_defaults_to_data_sessions_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The default directory is relative to cwd, so isolate cwd in tmp_path.
+
+    This keeps the test hermetic: it must never write into the real repo's
+    `data/sessions/` directory, and needs no unlink-on-success cleanup since
+    the whole tmp_path tree is discarded by pytest automatically.
+    """
+    monkeypatch.chdir(tmp_path)
     stats = _make_stats()
 
     result_path = save_session_stats(stats)
 
     assert result_path.parent == Path("data/sessions")
+    assert result_path.resolve() == tmp_path / "data" / "sessions" / result_path.name
     assert result_path.exists()
-
-    result_path.unlink()
