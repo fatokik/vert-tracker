@@ -365,6 +365,58 @@ def run_tracking_session(calibration_path: Path | None = None) -> int:
         logger.info("Vert Tracker stopped")
 
 
+def _synthetic_demo_frame(width: int = 1280, height: int = 720) -> NDArray[np.uint8]:
+    """Build a placeholder frame when no webcam frames are available."""
+    image = np.zeros((height, width, 3), dtype=np.uint8)
+    cv2.putText(
+        image,
+        "Demo Mode - No Camera",
+        (max(40, width // 2 - 280), height // 2),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1.5,
+        (255, 255, 255),
+        2,
+    )
+    cv2.putText(
+        image,
+        "Press q to quit",
+        (max(40, width // 2 - 120), height // 2 + 50),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (200, 200, 200),
+        1,
+    )
+    return image
+
+
+def _open_demo_camera(device_index: int = 0, warmup_reads: int = 30) -> cv2.VideoCapture | None:
+    """Open a webcam and require at least one successful frame before use.
+
+    macOS often reports VideoCapture as opened before frames are available
+    (permissions race, Continuity Camera, etc.). A failed first read used to
+    exit demo mode silently — warm up and fall back instead.
+    """
+    cap = cv2.VideoCapture(device_index)
+    if not cap.isOpened():
+        logger.warning("No webcam found at index %d", device_index)
+        cap.release()
+        return None
+
+    for attempt in range(warmup_reads):
+        ret, _frame = cap.read()
+        if ret:
+            logger.info("Webcam ready after %d warmup read(s)", attempt + 1)
+            return cap
+        time.sleep(0.05)
+
+    logger.warning(
+        "Webcam opened but delivered no frames after %d attempts; using synthetic frames",
+        warmup_reads,
+    )
+    cap.release()
+    return None
+
+
 def run_demo_mode(calibration_path: Path | None = None) -> int:
     """Run in demo mode without drone (for testing UI).
 
@@ -383,16 +435,11 @@ def run_demo_mode(calibration_path: Path | None = None) -> int:
     display = DisplayWindow(settings.ui)
     processor = build_processor(calibration_path)
     hud = HUDRenderer(settings.ui)
+    cap = _open_demo_camera()
+    if cap is None:
+        logger.warning("Using synthetic demo frames (no usable webcam)")
 
-    # Try webcam
-    cap_temp = cv2.VideoCapture(0)
-    cap: cv2.VideoCapture | None
-    if not cap_temp.isOpened():
-        logger.warning("No webcam found, using synthetic frames")
-        cap_temp.release()
-        cap = None
-    else:
-        cap = cap_temp
+    consecutive_read_failures = 0
 
     try:
         processor.initialize()
@@ -405,25 +452,32 @@ def run_demo_mode(calibration_path: Path | None = None) -> int:
         frame_count = 0
 
         while True:
-            # Get frame
             image: NDArray[np.uint8]
             if cap is not None:
                 ret, raw_image = cap.read()
                 if not ret:
-                    break
-                image = np.asarray(raw_image, dtype=np.uint8)
+                    consecutive_read_failures += 1
+                    if consecutive_read_failures >= 15:
+                        logger.warning(
+                            "Webcam stopped delivering frames; falling back to synthetic demo"
+                        )
+                        cap.release()
+                        cap = None
+                        consecutive_read_failures = 0
+                        image = _synthetic_demo_frame()
+                    else:
+                        # Brief gap — keep the UI alive instead of exiting
+                        time.sleep(0.02)
+                        action = display.poll_key(wait_ms=10)
+                        if action == KeyAction.QUIT or display.was_closed():
+                            logger.info("Quit requested during camera warmup/gap")
+                            break
+                        continue
+                else:
+                    consecutive_read_failures = 0
+                    image = np.asarray(raw_image, dtype=np.uint8)
             else:
-                # Synthetic frame
-                image = np.zeros((720, 1280, 3), dtype=np.uint8)
-                cv2.putText(
-                    image,
-                    "Demo Mode - No Camera",
-                    (400, 360),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1.5,
-                    (255, 255, 255),
-                    2,
-                )
+                image = _synthetic_demo_frame()
 
             frame = Frame(
                 image=image,
@@ -445,9 +499,10 @@ def run_demo_mode(calibration_path: Path | None = None) -> int:
 
             display.show_frame(output)
 
-            # Handle input
-            action = display.poll_key(wait_ms=1)
-            if action == KeyAction.QUIT:
+            # Handle input (slightly longer wait helps OpenCV event pumping on macOS)
+            action = display.poll_key(wait_ms=10)
+            if action == KeyAction.QUIT or display.was_closed():
+                logger.info("Quit requested")
                 break
             elif action == KeyAction.SAVE:
                 logger.info("Save requested")

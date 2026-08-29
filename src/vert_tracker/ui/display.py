@@ -161,6 +161,19 @@ class DisplayWindow:
         self._state.is_open = False
         logger.info("Display window closed")
 
+    def was_closed(self) -> bool:
+        """Return True if the OpenCV window was destroyed (e.g. red X).
+
+        Uses WND_PROP_VISIBLE < 0 as the destroyed signal. A value of 0 can
+        mean temporarily not visible on some backends; only negative means gone.
+        """
+        if not self._state.is_open:
+            return True
+        try:
+            return bool(cv2.getWindowProperty(self.WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 0)
+        except cv2.error:
+            return True
+
     def show_frame(self, image: NDArray[np.uint8]) -> None:
         """Display a frame in the window.
 
