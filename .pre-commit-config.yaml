@@ -12,7 +12,7 @@ repos:
       - id: mypy
         additional_dependencies:
           - pydantic-settings>=2.1.0
-          - numpy>=1.26.0
+          - numpy>=1.26.0,<2
         args: [--config-file=pyproject.toml]
         pass_filenames: false
         entry: mypy src

@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import cv2
+
 from vert_tracker.core.config import get_settings
 from vert_tracker.core.logging import get_logger, setup_logging
 from vert_tracker.drone.controller import TelloController
@@ -282,7 +283,6 @@ def main() -> int:
 
     try:
         controller.connect()
-        controller.start_stream()
 
         if args.method == "aruco":
             success = calibrate_with_aruco(calibrator, controller)

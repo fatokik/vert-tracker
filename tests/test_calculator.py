@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from vert_tracker.analysis.calculator import (
     HeightCalculator,
     calculate_jump_height,
@@ -43,6 +44,28 @@ class TestHeightCalculator:
         height = calculator.calculate_height(event, frame_height=720)
 
         assert height == 0.0
+
+    def test_rejects_non_positive_frame_height(
+        self,
+        sample_jump_event: JumpEvent,
+        calibration_profile: CalibrationProfile,
+    ) -> None:
+        """Should reject a non-positive frame_height instead of guessing."""
+        calculator = HeightCalculator(calibration_profile)
+        with pytest.raises(ValueError):
+            calculator.calculate_height(sample_jump_event, frame_height=0)
+
+    def test_height_scales_with_frame_height(
+        self,
+        sample_jump_event: JumpEvent,
+        calibration_profile: CalibrationProfile,
+    ) -> None:
+        """Height should scale linearly with the provided frame height."""
+        calculator = HeightCalculator(calibration_profile)
+        h720 = calculator.calculate_height(sample_jump_event, 720)
+        h1080 = calculator.calculate_height(sample_jump_event, 1080)
+
+        assert pytest.approx(h1080 / h720, rel=0.01) == 1080 / 720
 
     def test_height_scales_with_calibration(self, sample_jump_event: JumpEvent) -> None:
         """Height should scale inversely with px_per_cm."""
@@ -123,15 +146,27 @@ class TestHeightCalculator:
         """Physics validation should check height vs airborne time."""
         calculator = HeightCalculator(calibration_profile)
 
-        # Test with realistic values: ~40cm jump at 30fps
         # Airborne time ~0.5s means ~20cm physics height (h = 0.5 * g * (t/2)^2)
         is_valid, physics_height = calculator.validate_with_physics(
             height_cm=20.0,
-            airborne_frames=15,  # 0.5 seconds
-            fps=30.0,
+            airborne_time_s=0.5,
         )
 
         assert physics_height > 0
+
+    def test_physics_validation_rejects_non_positive_airborne_time(
+        self, calibration_profile: CalibrationProfile
+    ) -> None:
+        """Non-positive airborne time should be treated as invalid, not divide-by-zero."""
+        calculator = HeightCalculator(calibration_profile)
+
+        is_valid, physics_height = calculator.validate_with_physics(
+            height_cm=20.0,
+            airborne_time_s=0.0,
+        )
+
+        assert is_valid is False
+        assert physics_height == 0.0
 
 
 class TestCalculateJumpHeight:

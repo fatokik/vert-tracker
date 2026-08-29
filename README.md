@@ -2,6 +2,11 @@
 
 Measure vertical jump height for volleyball training using a DJI Tello EDU drone and computer vision.
 
+## Helpful Links
+
+- https://dl-cdn.ryzerobotics.com/downloads/Tello/Tello%20SDK%202.0%20User%20Guide.pdf
+- https://dl-cdn.ryzerobotics.com/downloads/tello/20180910/Tello%20SDK%20Documentation%20EN_1.3.pdf
+
 ## Features
 
 - **Real-time measurement** - Jump height calculated and displayed live during training
@@ -23,11 +28,11 @@ Measure vertical jump height for volleyball training using a DJI Tello EDU drone
 git clone https://github.com/fatokik/vert-tracker.git
 cd vert-tracker
 
-# Install dependencies with Poetry
-poetry install
+# Install dependencies with uv (Python 3.11+)
+uv sync --all-groups
 
 # Set up pre-commit hooks
-poetry run pre-commit install
+uv run pre-commit install
 
 # Copy and configure environment
 cp .env.example .env
@@ -39,22 +44,38 @@ cp .env.example .env
 # 1. Connect laptop to Tello WiFi network (TELLO-XXXXXX)
 
 # 2. Run calibration (first time or when changing setup)
-poetry run python scripts/calibrate.py
+uv run python scripts/calibrate.py
+# Saves to data/calibration/profile.json by default
 
-# 3. Start tracking session
-poetry run vert-tracker
+# 3. Start tracking session (auto-loads data/calibration/profile.json if present)
+uv run vert-tracker
 
-# Or start in demo mode (no drone required, uses webcam/simulated data)
-poetry run vert-tracker --demo
+# Optional: explicit calibration file
+uv run vert-tracker --calibration path/to/profile.json
+
+# Demo mode (no drone; webcam or synthetic frames)
+uv run vert-tracker --demo
 ```
 
 ## Controls
 
-- `q` - Quit application
+### Session
+
+- `q` / `Esc` - Quit (lands safely if airborne)
 - `c` - Run calibration
 - `r` - Reset session statistics
-- `s` - Save current session
+- `s` - Save current session to `data/sessions/session_<timestamp>.json`
 - `Space` - Pause/resume tracking
+- `Enter` / `p` - Toggle positioning vs tracking mode
+
+### Flight (positioning mode; hold keys for RC sticks)
+
+- `t` - Takeoff
+- `l` - Land
+- `w` / `x` - Forward / backward
+- `a` / `e` - Left / right
+- `i` / `j` (or ↑ / ↓) - Up / down
+- `u` / `o` (or ← / →) - Yaw left / right
 
 ## Project Structure
 
@@ -153,19 +174,18 @@ The system targets ±2-3 cm accuracy under optimal conditions:
 
 ```bash
 # Run tests
-poetry run pytest
+uv run pytest
 
 # Run with coverage
-poetry run pytest --cov
+uv run pytest --cov
 
 # Lint and format
-poetry run ruff check .
-poetry run ruff format .
+uv run ruff check .
+uv run ruff format .
 
 # Type checking
-poetry run mypy src
+uv run mypy src
 ```
-
 ## License
 
 MIT License - see LICENSE file for details.
